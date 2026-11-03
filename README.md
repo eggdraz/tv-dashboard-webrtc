@@ -1,74 +1,105 @@
-# Painel das TVs
+# 📺 Painel das TVs
 
-Transforma TVs com navegador (testado em LG webOS) em painéis de escritório,
-usando um computador velho ou um Chromebook como servidor — sem cabos e sem
-comprar nada.
+**Transforme TVs com navegador em painéis de escritório e telões de apresentação — sem cabos, sem aplicativo na TV e sem comprar nada.**
 
-- **Painéis:** cada TV abre uma página que mostra um ou dois sites lado a lado,
-  com zoom. Uma página de controle, aberta em qualquer PC da rede, decide o que
-  cada TV mostra.
-- **Transmissão de tela:** qualquer pessoa transmite a tela do PC ao vivo pra
-  uma TV, direto pela rede local (WebRTC, PC → TV). Duas TVs, duas pessoas
-  transmitindo ao mesmo tempo.
-- **Sites com login:** um intermediário (proxy) faz sites com login funcionarem
-  dentro do painel, onde o navegador da TV normalmente recusaria o cookie.
-- **Zero dependências:** um único `server.js` em Node 18+, sem `npm install`.
+Um único arquivo `server.js` (Node 18+, **zero dependências**) roda num computador qualquer da rede — no meu caso, um Chromebook velho. As TVs abrem uma página. Uma página de controle, aberta em qualquer PC, decide o que cada TV mostra. E qualquer pessoa pode transmitir a tela do PC ao vivo pra uma TV, direto pela rede local.
 
-## Como rodar
+> 🇺🇸 **In English:** a zero-dependency Node.js server that turns browser-capable smart TVs (tested on LG webOS) into office dashboards. Each TV shows one or two websites side by side, controlled from a web page, and anyone can stream their PC screen live to a TV over the local network via WebRTC. Includes a reverse proxy that makes login-protected sites work inside the TV's iframes, and a measurement-driven fix for WebRTC stutter on smart TVs. Docs are in Portuguese.
+
+---
+
+## O que ele faz
+
+| | |
+|---|---|
+| 🖥️ **Painéis** | Cada TV mostra um site em tela cheia ou dois lado a lado, com zoom ajustável. Trocar o que aparece leva um clique na página de controle — a TV atualiza na hora, sem ninguém encostar no controle remoto. |
+| 📡 **Transmissão de tela** | Qualquer pessoa transmite a tela do PC pra uma TV, ao vivo, pelo navegador (WebRTC, PC → TV direto). Duas TVs, duas pessoas transmitindo ao mesmo tempo. Quando para, a TV volta sozinha pro painel. |
+| 🔐 **Sites com login** | Dentro de um `iframe`, o navegador da TV recusa o cookie de login. Um intermediário (proxy reverso) faz o site parecer "da casa" pra TV, e o login funciona dentro do painel. |
+| 📊 **Diagnóstico embutido** | A transmissão mede tudo, dos dois lados: quadros gerados, enviados e recebidos, fila de saída, rede, buffer, congelamentos. Um registro da sessão mostra onde está o gargalo — e foi assim que os problemas difíceis foram resolvidos. |
+| 🛡️ **Feito pra ficar ligado** | Recarga diária de madrugada, reconexão automática, transmissão "presa" encerrada sozinha, proteção de tela da TV desligada sem mexer no menu dela. |
+
+## Como funciona, em uma imagem
+
+```mermaid
+flowchart LR
+    subgraph Rede local
+        S["🖥️ Servidor<br/>server.js<br/>(Chromebook, PC velho...)"]
+        C["💻 Página de controle<br/>(qualquer PC)"]
+        T1["📺 TV 1<br/>/tv?nome=infra"]
+        T2["📺 TV 2<br/>/tv?nome=simulacao"]
+        P["💻 PC transmitindo"]
+    end
+    C -- "o que cada TV mostra" --> S
+    S -- "atualização ao vivo (SSE)" --> T1
+    S -- "atualização ao vivo (SSE)" --> T2
+    P -. "apresentação (sinalização)" .-> S
+    P == "vídeo direto, WebRTC" ==> T1
+```
+
+O servidor só **coordena**: guarda o que cada TV mostra e apresenta o PC à TV. O vídeo da transmissão vai **direto do PC pra TV**, sem passar por ele — por isso um Chromebook dá conta.
+
+## Começando em 1 minuto
 
 ```bash
+git clone https://github.com/eggdraz/tv-dashboard-webrtc.git
+cd tv-dashboard-webrtc
 node server.js
 ```
 
-- Controle: `http://<ip-do-servidor>:8080/`
-- Cada TV: `http://<ip-do-servidor>:8080/tv?nome=infra` (as TVs ficam na lista `TVS` do `server.js`)
-- TV de teste num PC qualquer: `http://<ip-do-servidor>:8080/tv?nome=teste`
-
-Pra transmitir a tela por `http://`, o Chrome de quem transmite precisa liberar a
-origem uma vez em `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
-
-## Configuração (no topo do `server.js`)
-
-| O quê | Onde |
+| Quem | Abre |
 |---|---|
-| TVs | `TVS` |
-| Sites sugeridos na página de controle | `ATALHOS` |
-| Sites com login via intermediário | `INTERMEDIARIOS` (site, porta e servidores de dados que a página chama) |
+| Página de controle | `http://<ip-do-servidor>:8080/` |
+| Cada TV (no navegador dela) | `http://<ip-do-servidor>:8080/tv?nome=infra` |
+| TV de teste, em qualquer PC | `http://<ip-do-servidor>:8080/tv?nome=teste` |
 
-O estado de cada TV fica salvo em `estado.json` (criado sozinho; fora do git).
+Pra transmitir a tela, o Chrome de quem transmite precisa liberar o endereço uma vez — veja [Instalação → Transmissão de tela](docs/instalacao.md#transmissão-de-tela-uma-vez-por-pc).
 
-## O que aprendi no caminho
+## Documentação
 
-A transmissão travava mesmo com a rede perfeita. Em vez de chutar, a página de
-controle ganhou um **registro da sessão**: o que a tela gera, o que o PC envia,
-o que a TV recebe, perda de pacotes, congelamentos e irregularidade entre
-quadros. Os números mostraram:
+| Guia | O que tem |
+|---|---|
+| [**Instalação**](docs/instalacao.md) | Linux, Chromebook (com as armadilhas do ChromeOS), TVs, subir sozinho no boot |
+| [**Arquitetura**](docs/arquitetura.md) | Componentes, fluxos, rotas HTTP, eventos e o estado salvo |
+| [**Transmissão de tela**](docs/transmissao.md) | Como o WebRTC foi ajustado e a investigação das travadas, com os números medidos |
+| [**Sites com login**](docs/sites-com-login.md) | O intermediário (proxy reverso) e o modo de navegador no servidor |
+| [**Problemas comuns**](docs/problemas-comuns.md) | Sintoma → causa → solução |
 
-1. **Zero pacotes perdidos** — não era a rede.
-2. Toda travada vinha **logo depois de a tela ficar parada**: o Chrome só manda
-   quadro quando a tela muda, e o player da TV "dormia" nas pausas.
-3. **Correção:** um relógio num Web Worker manda sempre 30 quadros/s, repetindo o
-   último quando a tela não muda — com carimbo de tempo da agenda, pra TV ver um
-   ritmo perfeitamente igual.
+## Destaques técnicos
 
-Outros achados, todos medidos:
+Alguns problemas que pareciam simples e não eram — cada um resolvido medindo, não chutando:
 
-- O codificador H.264 por hardware de alguns PCs ignora o limite de banda e o
-  excesso vira fila de mais de 1 s dentro do próprio PC; VP8 respeita o limite.
-- O VP8 não tem linha `a=fmtp` no SDP, então as instruções de banda inicial e
-  mínima nunca chegavam e o vídeo começava em 320×180 — a correção cria a linha.
-- Sites escondidos atrás da transmissão continuavam rodando e disputavam o
-  processador fraco da TV; agora saem durante a transmissão e voltam no fim.
-- A TV entra em proteção de tela se nenhum vídeo estiver tocando; um vídeo mudo
-  de 2 pixels em loop resolve, e pausa durante a transmissão.
+- **Vídeo travando com a rede perfeita.** Zero pacotes perdidos, e mesmo assim a TV congelava. O registro mostrou que toda travada vinha logo depois de a tela do PC ficar parada: o Chrome só manda quadro quando a tela muda, e o player da TV "dormia" nas pausas. A solução é um relógio num Web Worker que mantém 30 quadros/s constantes, com carimbo de tempo da agenda. [→ a investigação completa](docs/transmissao.md)
+- **4 segundos de atraso que não eram da rede.** O codificador H.264 por hardware de alguns PCs ignora o limite de banda; o excesso vira uma fila de mais de 1 s *dentro do próprio PC*. Com VP8, que respeita o limite: fila zero.
+- **Vídeo começando em 320×180.** O VP8 não tem linha `a=fmtp` no SDP, então as instruções de banda inicial nunca chegavam. A correção cria a linha.
+- **Login que funciona em tela cheia, mas não no painel.** Cookies de terceiros bloqueados dentro do `iframe`. O intermediário traduz cookies `__Secure-`/`__Host-`, endereços (inclusive escapados em JSON e codificados em URL), `Origin`/`Referer` e até o corpo do formulário de login. [→ como funciona](docs/sites-com-login.md)
+- **Painel logado, mas sem dados.** O site buscava os dados em outro servidor, que só aceita pedidos do endereço original (CORS). O intermediário passou a encaminhar esse servidor também, no mesmo endereço.
+- **TV entrando em proteção de tela.** A TV não deixa desligar isso no menu. Um vídeo mudo de 1,5 KB e 2 pixels, em loop, faz ela achar que tem vídeo tocando — e pausa durante a transmissão pra não ocupar o decodificador.
 
 ## Estrutura
 
 ```
-server.js              servidor HTTP, sinalização WebRTC, intermediário, estado
-public/controle.html   página de controle (painéis + transmissão + medidas)
-public/tv.html         página que cada TV abre
-public/acordada.mp4    vídeo de 1,5 KB contra a proteção de tela
+server.js              servidor HTTP, sinalização WebRTC, intermediário, estado (~1.400 linhas)
+public/controle.html   página de controle: painéis, transmissão, medidas e registro
+public/tv.html         página que cada TV abre: painéis e recepção do vídeo
+public/acordada.mp4    vídeo de 1,5 KB contra a proteção de tela da TV
 iniciar-painel.sh      sobe o servidor em segundo plano (Linux)
-painel-tv.desktop      atalho pro script acima
+painel-tv.desktop      atalho no menu de apps pro script acima
+docs/                  documentação
 ```
+
+Sem build, sem framework, sem `npm install`: HTML, CSS e JavaScript puros, e o servidor usa só módulos nativos do Node (`http`, `https`, `zlib`, `crypto`, `child_process`).
+
+## Compatibilidade
+
+| Testado em | Situação |
+|---|---|
+| LG webOS (navegador da TV) | ✅ painéis, transmissão, sites com login |
+| Chrome / Edge no Windows (quem transmite) | ✅ |
+| Servidor no Linux do ChromeOS (Crostini) | ✅ com [cuidados](docs/instalacao.md#no-chromebook-linux-do-chromeos) |
+| Servidor em Linux comum | ✅ o caso mais simples |
+
+Outras TVs com navegador baseado em Chromium devem funcionar; não foram testadas.
+
+## Como foi feito
+
+Projeto feito durante meu estágio, a partir de uma necessidade real: duas TVs paradas, um Chromebook sobrando e nenhum orçamento. Desenvolvido com a ajuda de IA (Claude), com uma regra que fez diferença: **toda mudança testada localmente antes de ir pra produção**, e todo problema investigado com medidas antes de qualquer correção.

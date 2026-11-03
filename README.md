@@ -4,7 +4,7 @@
 
 Um único arquivo `server.js` (Node 18+, **zero dependências**) roda num computador qualquer da rede — no meu caso, um Chromebook velho. As TVs abrem uma página. Uma página de controle, aberta em qualquer PC, decide o que cada TV mostra. E qualquer pessoa pode transmitir a tela do PC ao vivo pra uma TV, direto pela rede local.
 
-> 🇺🇸 **In English:** a zero-dependency Node.js server that turns browser-capable smart TVs (tested on LG webOS) into office dashboards. Each TV shows one or two websites side by side, controlled from a web page, and anyone can stream their PC screen live to a TV over the local network via WebRTC. Includes a reverse proxy that makes login-protected sites work inside the TV's iframes, and a measurement-driven fix for WebRTC stutter on smart TVs. Docs are in Portuguese.
+> 🇺🇸 **In English:** a zero-dependency Node.js server that turns browser-capable smart TVs (tested on LG webOS) into office dashboards. Each TV shows one or two websites side by side, controlled from a web page, and anyone can stream their PC screen live to a TV over the local network via WebRTC. Includes a reverse proxy that makes login-protected sites work inside the TV's iframes, and a measurement-driven fix for WebRTC stutter on smart TVs. Built during my internship, pair-programmed with AI (Claude): the AI proposed and implemented, I defined, tested on the real TVs and decided. Docs are in Portuguese.
 
 ---
 
@@ -102,4 +102,16 @@ Outras TVs com navegador baseado em Chromium devem funcionar; não foram testada
 
 ## Como foi feito
 
-Projeto feito durante meu estágio, a partir de uma necessidade real: duas TVs paradas, um Chromebook sobrando e nenhum orçamento. Desenvolvido com a ajuda de IA (Claude), com uma regra que fez diferença: **toda mudança testada localmente antes de ir pra produção**, e todo problema investigado com medidas antes de qualquer correção.
+Projeto do meu estágio, a partir de uma necessidade real: duas TVs paradas, um Chromebook sobrando e nenhum orçamento. Está em uso no dia a dia da equipe.
+
+O código foi escrito **em par com IA (Claude)**: a IA propunha soluções e implementava; eu definia o que fazer, testava e decidia. Na prática, a minha parte foi:
+
+- **Definir o problema e as restrições** — sem cabos, sem compra, sem instalar nada nas TVs — e escolher entre as alternativas (Miracast, Google Cast, Raspberry Pi, WebRTC no navegador).
+- **Testar nas TVs de verdade**, com a equipe usando, e trazer os dados de volta. Várias falhas só apareciam na TV e nunca no navegador do PC.
+- **Conduzir a investigação** das travadas e do atraso: exigir medidas antes de cada correção, pedir o registro da sessão pra comparar o que o PC envia com o que a TV recebe, e recusar correções que não se provavam nos números.
+- **Simplificar** — cortar opções que confundiam quem usava, até sobrar um modo de transmissão só.
+- **Operar em produção** — instalar e manter o servidor no Chromebook, lidar com mudanças de rede e de IP.
+
+A regra que mais fez diferença: **nenhuma mudança ia pras TVs sem ser testada antes**.
+
+O que aprendi no caminho: como o WebRTC funciona por dentro (SDP, ICE, codificadores, estatísticas de envio e recepção), como cookies e CORS se comportam entre sites, e — principalmente — que medir antes de corrigir economiza dias.

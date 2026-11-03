@@ -1,0 +1,14 @@
+# o que cada TV mostra (sites internos) - muda o tempo todo e não é código
+estado.json
+# login dos sites, se usar o modo de navegador no servidor
+perfil-navegador/
+# logs
+*.log
+painel.log
+# chaves e backups nunca vão pro git
+*.pem
+*.key
+authorized_keys
+backup*/
+*.zip
+*.tar.gz

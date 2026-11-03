@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Iniciar painel das TVs
+Comment=Sobe o servidor do painel das TVs, se ainda nao estiver rodando
+Exec=/home/SEU_USUARIO/servidor/iniciar-painel.sh
+Terminal=false
+Icon=video-display
+Categories=Utility;

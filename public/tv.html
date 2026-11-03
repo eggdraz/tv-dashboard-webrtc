@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel</title>
+<style>
+  :root {
+    --fundo: #0d0f12;
+    --divisoria: #2a2f37;
+    --barra: #171a1f;
+    --texto: #8b94a3;
+    --texto-forte: #e6e9ee;
+    --alerta: #f0b429;
+    --erro: #ef5350;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--fundo);
+    overflow: hidden;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  /* O cursor do controle so some quando ninguem esta mexendo nele - assim nao
+     fica uma seta parada sobre o painel, mas quem pega o controle ve onde clica */
+  body.parado, body.parado * { cursor: none; }
+
+  #tela { display: flex; width: 100%; height: 100%; gap: 2px; background: var(--divisoria); }
+
+  .painel {
+    flex: 1 1 50%;
+    display: flex; flex-direction: column;
+    background: var(--fundo);
+    position: relative; overflow: hidden; min-width: 0;
+  }
+  .painel.oculto { display: none; }
+
+  .barra {
+    flex: 0 0 auto;
+    background: var(--barra); color: var(--texto);
+    font-size: 15px; letter-spacing: .05em; text-transform: uppercase;
+    padding: 8px 16px;
+    display: flex; justify-content: space-between; align-items: center;
+    white-space: nowrap; overflow: hidden;
+  }
+  .barra .horario { font-size: 12px; opacity: .45; text-transform: none; letter-spacing: 0; }
+  .barra .direita { display: flex; align-items: center; gap: 14px; }
+
+  /* Abre o site como pagina normal da TV, fora do quadro do painel. E o
+     caminho pra fazer login e usar o site: dentro do quadro o navegador
+     trata o site como "de terceiros" e costuma bloquear os cookies de login. */
+  .abrir {
+    font: inherit; font-size: 13px; letter-spacing: 0; text-transform: none;
+    color: var(--texto-forte);
+    background: transparent;
+    border: 1px solid var(--divisoria);
+    border-radius: 6px;
+    padding: 4px 12px;
+    cursor: pointer;
+  }
+  .abrir:hover, .abrir:focus { border-color: #4c8dff; background: rgba(76, 141, 255, .15); outline: none; }
+  .aviso .abrir { font-size: 17px; padding: 10px 22px; margin-top: 6px; }
+
+  .moldura { flex: 1 1 auto; position: relative; overflow: hidden; }
+
+  /* O iframe e renderizado maior e escalado por transform: assim o site
+     "enxerga" uma janela grande e o zoom nao corta o conteudo dele. */
+  .moldura iframe {
+    position: absolute; top: 0; left: 0;
+    border: 0; transform-origin: 0 0; background: var(--fundo);
+  }
+
+  /* Painel com login: imagem do navegador do Chromebook no lugar do quadro */
+  .moldura img.remoto {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: none;
+    object-fit: fill;
+    background: var(--fundo);
+    user-select: none; -webkit-user-drag: none;
+  }
+  .painel.modo-remoto img.remoto { display: block; }
+  .painel.modo-remoto iframe { display: none; }
+  .painel.modo-remoto .abrir { display: none; }
+
+  /* Durante a transmissao de tela os paineis ficam cobertos pelo video. Parar
+     de desenhar eles libera o processador da TV pra decodificar o video - os
+     sites continuam carregados e voltam na hora quando a transmissao acaba. */
+  body.transmitindo #tela { visibility: hidden; content-visibility: hidden; }
+
+  .aviso {
+    position: absolute; inset: 0;
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 14px; padding: 30px; text-align: center;
+    background: var(--fundo); color: var(--alerta);
+  }
+  .aviso.visivel { display: flex; }
+  .aviso h2 { font-size: 22px; font-weight: 600; }
+  .aviso p  { font-size: 16px; color: var(--texto); max-width: 38ch; line-height: 1.55; }
+  .aviso code {
+    font-size: 14px; color: var(--texto);
+    background: var(--barra); padding: 6px 12px; border-radius: 4px; word-break: break-all;
+  }
+
+  /* Selo que aparece quando o servidor cai. A TV continua mostrando o ultimo
+     conteudo - so avisa que ninguem consegue mais trocar remotamente. */
+  #offline {
+    position: fixed; bottom: 18px; right: 20px;
+    display: none; align-items: center; gap: 9px;
+    background: rgba(23, 26, 31, .95);
+    border: 1px solid var(--erro);
+    color: var(--erro);
+    padding: 9px 16px; border-radius: 20px; font-size: 13px;
+    z-index: 50;
+  }
+  #offline.visivel { display: flex; }
+  #offline .ponto {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--erro); animation: pisca 1.6s infinite;
+  }
+  @keyframes pisca { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+
+  /* ---------- Transmissao de tela ----------
+     Cobre o painel inteiro enquanto um dev esta compartilhando. O dashboard
+     continua vivo por baixo, entao quando a transmissao acaba a TV volta
+     instantaneamente pro que estava - sem recarregar nada. */
+  #transmissao {
+    position: fixed; inset: 0;
+    display: none;
+    background: #000;
+    z-index: 80;
+  }
+  #transmissao.visivel { display: block; }
+  #transmissao video {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    background: #000;
+  }
+  #transmissao .quem {
+    position: absolute; top: 18px; left: 22px;
+    background: rgba(13, 15, 18, .78);
+    color: var(--texto-forte);
+    padding: 8px 16px; border-radius: 20px;
+    font-size: 14px;
+    display: flex; align-items: center; gap: 9px;
+  }
+  #transmissao .quem .ponto {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #ef5350; animation: pisca 1.6s infinite;
+  }
+  #transmissao .aguardando {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--texto); font-size: 19px;
+  }
+  #transmissao.recebendo .aguardando { display: none; }
+
+  /* Endereco desta pagina, mostrado so no comeco pra facilitar a configuracao */
+  #endereco {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px;
+    background: var(--fundo); color: var(--texto);
+    font-size: 17px; z-index: 60;
+    transition: opacity .8s ease;
+  }
+  #endereco.sumindo { opacity: 0; pointer-events: none; }
+  #endereco strong { color: var(--texto-forte); font-size: 21px; }
+  #endereco .nome-tv { color: var(--texto-forte); font-size: 30px; font-weight: 600; }
+
+  /* Escolha de TV: aparece quando o endereco nao diz qual TV e esta */
+  #escolha { display: flex; flex-direction: column; gap: 14px; align-items: stretch; min-width: 320px; }
+  #escolha a {
+    display: block; text-align: center;
+    color: var(--texto-forte); text-decoration: none;
+    border: 1px solid var(--divisoria); border-radius: 10px;
+    padding: 16px 26px; font-size: 21px;
+  }
+  #escolha a:focus, #escolha a:hover { border-color: #4c8dff; outline: none; background: var(--barra); }
+</style>
+</head>
+<body>
+
+<div id="tela"></div>
+
+<div id="offline"><span class="ponto"></span> Servidor fora do ar</div>
+
+<!-- Mantem a TV acordada (ver "Protecao de tela" no fim do script). Fica num
+     canto, quase transparente: escondido de vez (display:none) o navegador
+     pode pausar o video e a TV deixa de considera-lo tocando. -->
+<video id="acordada" src="/acordada.mp4" autoplay muted loop playsinline
+       style="position:fixed;right:0;bottom:0;width:2px;height:2px;opacity:0.01;pointer-events:none"></video>
+
+<div id="transmissao">
+  <video id="video" autoplay playsinline muted></video>
+  <div class="quem"><span class="ponto"></span><span id="quemTexto">Transmitindo</span></div>
+  <div class="aguardando">Conectando com o PC...</div>
+</div>
+
+<div id="endereco">
+  <div class="nome-tv" id="nomeTv"></div>
+  <div id="linhaConectado">Painel conectado</div>
+  <strong id="urlControle">carregando...</strong>
+  <div id="linhaControle">Abra esse endereço no seu PC para controlar esta TV</div>
+  <div id="escolha"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* Qual TV e esta: vem do endereco, ex. /tv?nome=infra */
+  const NOME = new URLSearchParams(location.search).get("nome");
+
+  /* Sem nome no endereco: em vez de adivinhar, mostra as TVs cadastradas pra
+     quem esta configurando escolher. A escolha vira o endereco a salvar nos
+     favoritos da TV. */
+  if (!NOME) {
+    mostrarEscolha("Qual TV é esta?");
+    return;
+  }
+
+  function mostrarEscolha(pergunta) {
+    /* o cartao pode ja ter sumido (fica so escondido, nunca e removido) */
+    document.getElementById("endereco").classList.remove("sumindo");
+    document.getElementById("nomeTv").textContent = pergunta;
+    document.getElementById("linhaConectado").textContent =
+      "Escolha abaixo e depois salve a página nos favoritos da TV.";
+    document.getElementById("urlControle").textContent = "";
+    document.getElementById("linhaControle").textContent = "";
+    document.body.style.cursor = "auto";
+
+    fetch("/config").then(function (r) { return r.json(); }).then(function (cfg) {
+      const escolha = document.getElementById("escolha");
+      escolha.textContent = "";
+      cfg.tvs.forEach(function (t) {
+        const a = document.createElement("a");
+        a.href = "/tv?nome=" + encodeURIComponent(t.id);
+        a.textContent = t.nome;
+        escolha.appendChild(a);
+      });
+      const primeiro = escolha.querySelector("a");
+      if (primeiro) primeiro.focus();   /* o controle remoto ja comeca num botao */
+    }).catch(function () {
+      document.getElementById("linhaConectado").textContent =
+        "Não consegui falar com o servidor. Confira se ele está rodando.";
+    });
+  }
+
+  const CHAVE = "painel-tv-ultimo-estado-" + NOME;
+  const tela = document.getElementById("tela");
+  const selo = document.getElementById("offline");
+
+  /* ----------------------------------------------------------------------
+     Monta os dois paineis uma vez so. Depois so trocamos o conteudo deles,
+     pra nao recriar iframe a toa (o que causaria recarga desnecessaria).
+     ---------------------------------------------------------------------- */
+  function criarPainel() {
+    const p = { raiz: document.createElement("div") };
+    p.raiz.className = "painel";
+
+    const barra = document.createElement("div");
+    barra.className = "barra";
+    p.titulo = document.createElement("span");
+    p.horario = document.createElement("span");
+    p.horario.className = "horario";
+
+    /* Sai da pagina do painel e abre o site direto. O botao Voltar do
+       controle traz de volta, e o painel reconecta sozinho. */
+    const abrirSite = function () { if (p.urlCarregada) location.href = p.urlCarregada; };
+
+    const abrir = document.createElement("button");
+    abrir.type = "button";
+    abrir.className = "abrir";
+    abrir.textContent = "Abrir em tela cheia";
+    abrir.addEventListener("click", abrirSite);
+
+    const direita = document.createElement("span");
+    direita.className = "direita";
+    direita.append(abrir, p.horario);
+    barra.append(p.titulo, direita);
+    p.raiz.appendChild(barra);
+
+    p.moldura = document.createElement("div");
+    p.moldura.className = "moldura";
+
+    p.frame = document.createElement("iframe");
+    p.frame.setAttribute("referrerpolicy", "no-referrer-when-downgrade");
+    p.frame.setAttribute("allow", "fullscreen; autoplay; clipboard-read; clipboard-write");
+
+    /* aviso de problema; o texto e definido na hora, conforme o tipo de painel */
+    p.aviso = document.createElement("div");
+    p.aviso.className = "aviso";
+    const h2 = document.createElement("h2");
+    const txt = document.createElement("p");
+    p.urlErro = document.createElement("code");
+
+    /* Site que bloqueia o quadro ainda pode ser usado aberto direto */
+    const abrirAviso = document.createElement("button");
+    abrirAviso.type = "button";
+    abrirAviso.className = "abrir";
+    abrirAviso.textContent = "Abrir o site direto";
+    abrirAviso.addEventListener("click", abrirSite);
+
+    p.aviso.append(h2, txt, p.urlErro, abrirAviso);
+    p.avisoTitulo = h2;
+    p.avisoTexto = txt;
+
+    /* Painel com login: imagem do navegador do Chromebook. Clique e rolagem
+       feitos aqui com o controle vao pro site de verdade, la no Chromebook. */
+    p.img = document.createElement("img");
+    p.img.className = "remoto";
+    p.img.alt = "";
+    p.img.draggable = false;
+
+    function posicao(e) {
+      const r = p.img.getBoundingClientRect();
+      return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+    }
+
+    p.img.addEventListener("click", function (e) {
+      const pos = posicao(e);
+      entradaRemota(p, { tipo: "clique", x: pos.x, y: pos.y });
+    });
+
+    /* a roda do controle gera muitos eventos pequenos: juntamos em lotes */
+    let rolagem = 0, timerRolagem = null, ultimaPos = null;
+    p.img.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      ultimaPos = posicao(e);
+      rolagem += e.deltaY;
+      if (timerRolagem) return;
+      timerRolagem = setTimeout(function () {
+        entradaRemota(p, { tipo: "rolar", x: ultimaPos.x, y: ultimaPos.y, deltaY: rolagem });
+        rolagem = 0;
+        timerRolagem = null;
+      }, 80);
+    }, { passive: false });
+
+    p.moldura.append(p.frame, p.img, p.aviso);
+    p.raiz.appendChild(p.moldura);
+    tela.appendChild(p.raiz);
+
+    /* O zoom depende da largura da moldura, que muda quando o layout troca de
+       1 pra 2 paineis. Observar o elemento e mais confiavel do que medir depois
+       de um requestAnimationFrame: o rAF nao dispara enquanto a pagina nao esta
+       sendo desenhada (outro app aberto na TV), e o zoom ficaria errado. */
+    new ResizeObserver(function () { ajustarZoom(p); }).observe(p.moldura);
+
+    return p;
+  }
+
+  const paineis = [criarPainel(), criarPainel()];
+  paineis.forEach(function (p, i) { p.indice = i; });
+
+  /* ----------------------------------------------------------------------
+     Carga, zoom e recarga
+     ---------------------------------------------------------------------- */
+
+  /* Cross-origin nao deixa inspecionar o conteudo, entao nao da pra saber se
+     o site foi bloqueado. Usamos o tempo: se nada carregar em 20s, avisa. */
+  function definirAviso(p, titulo, texto) {
+    p.avisoTitulo.textContent = titulo;
+    p.avisoTexto.textContent = texto;
+  }
+
+  function vigiar(p) {
+    clearTimeout(p.timer);
+    definirAviso(p, "Este site não carregou",
+      "Ele provavelmente bloqueia ser exibido dentro de outra página (X-Frame-Options / CSP). " +
+      "Use o botão abaixo para abrir direto.");
+    p.timer = setTimeout(function () { p.aviso.classList.add("visivel"); }, 20000);
+    p.frame.onload = function () {
+      clearTimeout(p.timer);
+      p.aviso.classList.remove("visivel");
+    };
+  }
+
+  function ajustarZoom(p) {
+    const z = p.zoom > 0 ? p.zoom : 1;
+    const box = p.moldura.getBoundingClientRect();
+
+    /* Enquanto a pagina nao foi desenhada, a moldura mede 0. Gravar 0px deixaria
+       o iframe invisivel ate alguem mexer na janela, entao preferimos nao mexer
+       e deixar a reconciliacao periodica resolver quando houver tamanho real. */
+    if (box.width < 1 || box.height < 1) return;
+
+    p.frame.style.width  = (box.width  / z) + "px";
+    p.frame.style.height = (box.height / z) + "px";
+    p.frame.style.transform = "scale(" + z + ")";
+
+    informarTamanho(p);
+  }
+
+  function marcarHorario(p) {
+    const a = new Date();
+    p.horario.textContent = String(a.getHours()).padStart(2, "0") + ":" +
+                            String(a.getMinutes()).padStart(2, "0");
+  }
+
+  /* ----------------------------------------------------------------------
+     Paineis com login (imagem do navegador do Chromebook)
+     ---------------------------------------------------------------------- */
+  let transmitindoAqui = false;   /* durante transmissao de tela, a imagem pausa */
+
+  function enderecoStream(p) {
+    return "/remoto/stream?tv=" + encodeURIComponent(NOME) + "&painel=" + p.indice + "&origem=tv";
+  }
+
+  /* Imagem vazia de 1 pixel. Trocar o endereco da imagem por ela e o jeito
+     garantido de fazer o navegador fechar a conexao da imagem anterior -
+     so remover o endereco nem sempre fecha. */
+  const IMAGEM_VAZIA = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+  function ligarStream(p, forcar) {
+    const base = enderecoStream(p);
+    if (p.streamBase === base && !forcar) return;
+    p.streamBase = base;
+    p.tamanhoInformado = null;    /* o servidor pode ter reiniciado: manda de novo */
+    clearTimeout(p.timer);
+    p.aviso.classList.remove("visivel");
+
+    /* Se a imagem nao aparecer em 20s, explica. A checagem e pelo tamanho da
+       imagem porque o evento "load" de imagem em fluxo nao e confiavel. */
+    p.timer = setTimeout(function () {
+      if (p.streamBase && !p.img.naturalWidth) {
+        definirAviso(p, "O navegador do Chromebook não respondeu",
+          "Confira na página de controle se o painel com login está pronto. " +
+          "Se o Chromium não estiver instalado no Chromebook, rode: sudo apt install -y chromium");
+        p.aviso.classList.add("visivel");
+      }
+    }, 20000);
+
+    /* imagem caiu (servidor reiniciou, painel ainda abrindo): tenta de novo */
+    p.img.onerror = function () {
+      if (!p.streamBase) return;
+      clearTimeout(p.timerRetry);
+      p.timerRetry = setTimeout(function () {
+        if (p.streamBase && !transmitindoAqui) p.img.src = p.streamBase + "&t=" + Date.now();
+      }, 3000);
+    };
+
+    if (!transmitindoAqui) p.img.src = base + "&t=" + Date.now();
+    marcarHorario(p);
+    informarTamanho(p);
+  }
+
+  function desligarStream(p) {
+    if (!p.streamBase) return;
+    p.streamBase = null;
+    clearTimeout(p.timer);
+    clearTimeout(p.timerRetry);
+    p.img.onerror = null;
+    p.img.src = IMAGEM_VAZIA;
+    p.aviso.classList.remove("visivel");
+  }
+
+  /* Pausa a imagem enquanto um dev transmite a tela nesta TV: assim a TV e o
+     Wi-Fi dela ficam so com o video da transmissao. (O servidor tambem para
+     de mandar - aqui garantimos que a conexao fecha do lado da TV.) */
+  function pausarStreams() {
+    transmitindoAqui = true;
+    manterAcordada();   /* pausa o video de manter acordada */
+    paineis.forEach(function (p) {
+      if (p.streamBase) { clearTimeout(p.timerRetry); clearTimeout(p.timer); p.img.src = IMAGEM_VAZIA; }
+      /* Os sites dos paineis tambem saem: mesmo escondidos, eles continuam
+         rodando (dashboards buscam dados o tempo todo) e o processador da TV
+         e fraco - disputavam com o video, que congelava. Voltam no fim. */
+      if (p.urlCarregada && !p.descarregado) {
+        clearTimeout(p.timer);
+        p.frame.onload = null;
+        p.frame.src = "about:blank";
+        p.descarregado = true;
+      }
+    });
+  }
+
+  function retomarStreams() {
+    transmitindoAqui = false;
+    manterAcordada();   /* volta a tocar */
+    paineis.forEach(function (p) {
+      if (p.streamBase) ligarStream(p, true);
+      if (p.descarregado) { p.descarregado = false; carregar(p, p.urlCarregada); }
+    });
+  }
+
+  /* O navegador do Chromebook desenha o site no tamanho exato deste painel */
+  function informarTamanho(p) {
+    if (!p.streamBase) return;
+    const box = p.moldura.getBoundingClientRect();
+    if (box.width < 1 || box.height < 1) return;
+    const z = p.zoom > 0 ? p.zoom : 1;
+    /* escala da tela: o navegador da LG usa menos pixels "de pagina" do que a
+       tela tem. Sem isso, o Chromebook desenharia pequeno e a TV ampliaria. */
+    const dpr = window.devicePixelRatio || 1;
+    const chave = Math.round(box.width) + "x" + Math.round(box.height) + "@" + z + "/" + dpr;
+    if (p.tamanhoInformado === chave) return;
+    p.tamanhoInformado = chave;
+    fetch("/remoto/tamanho", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tv: NOME, painel: p.indice,
+        largura: Math.round(box.width), altura: Math.round(box.height), zoom: z, dpr: dpr
+      })
+    }).then(function (r) { if (!r.ok) p.tamanhoInformado = null; })
+      .catch(function () { p.tamanhoInformado = null; });
+  }
+
+  /* Fila: os cliques chegam ao site na mesma ordem em que foram feitos */
+  let filaEntrada = Promise.resolve();
+  function entradaRemota(p, dados) {
+    if (!p.streamBase) return;
+    dados.tv = NOME;
+    dados.painel = p.indice;
+    filaEntrada = filaEntrada.then(function () {
+      return fetch("/remoto/entrada", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dados)
+      }).catch(function () {});
+    });
+  }
+
+  /* Endereco que a TV abre pra um painel. Pelo intermediario, e o mesmo
+     caminho do site, mas na porta do intermediario neste mesmo Chromebook -
+     e isso que faz o navegador da TV aceitar o login dentro do quadro. */
+  function enderecoDoPainel(cfg) {
+    if (cfg.modo !== "intermediario" || !cfg.porta) return cfg.url;
+    try {
+      const u = new URL(cfg.url);
+      return location.protocol + "//" + location.hostname + ":" + cfg.porta + u.pathname + u.search + u.hash;
+    } catch (e) { return cfg.url; }
+  }
+
+  function carregar(p, url) {
+    /* durante a transmissao so anota: carrega quando ela acabar */
+    if (transmitindoAqui) { p.urlCarregada = url; p.descarregado = true; return; }
+    vigiar(p);
+    p.frame.src = url;
+    p.urlCarregada = url;
+    marcarHorario(p);
+  }
+
+  /* ----------------------------------------------------------------------
+     Aplica um estado vindo do servidor
+     ---------------------------------------------------------------------- */
+  let estadoAtual = null;
+
+  function aplicar(estado) {
+    if (!estado || !estado.paineis) return;
+
+    paineis[1].raiz.classList.toggle("oculto", estado.layout === 1);
+
+    estado.paineis.forEach(function (cfg, i) {
+      const p = paineis[i];
+      if (!p) return;
+      if (i === 1 && estado.layout === 1) { desligarStream(p); return; }
+
+      p.titulo.textContent = cfg.titulo || "";
+      p.urlErro.textContent = cfg.url;
+      p.zoom = cfg.zoom;
+
+      const remoto = cfg.modo === "remoto";
+      p.raiz.classList.toggle("modo-remoto", remoto);
+
+      if (remoto) {
+        /* libera o quadro: o site agora vem do navegador do Chromebook */
+        if (p.urlCarregada) { p.frame.src = "about:blank"; p.urlCarregada = null; }
+        p.descarregado = false;
+        ligarStream(p);
+        informarTamanho(p);   /* o zoom pode ter mudado sem mudar o tamanho */
+      } else {
+        desligarStream(p);
+        /* So recarrega se a URL e diferente da que esta carregada NESTE painel.
+           Comparar com o estado anterior nao serve: o painel da direita fica
+           escondido no layout de 1, entao a URL dele pode estar no estado sem
+           nunca ter sido carregada - e ao dividir a tela ele ficaria em branco. */
+        const endereco = enderecoDoPainel(cfg);
+        if (p.urlCarregada !== endereco) carregar(p, endereco);
+      }
+    });
+
+    estadoAtual = estado;
+
+    /* Se so o zoom mudou, a moldura nao muda de tamanho e o ResizeObserver nao
+       dispara - por isso aplicamos aqui tambem. */
+    ajustarZoom(paineis[0]);
+    if (estado.layout === 2) ajustarZoom(paineis[1]);
+
+    try { localStorage.setItem(CHAVE, JSON.stringify(estado)); } catch (e) {}
+  }
+
+  function recarregarTudo() {
+    if (!estadoAtual) return;
+    const ativos = estadoAtual.layout === 2 ? [0, 1] : [0];
+    ativos.forEach(function (i) {
+      const p = paineis[i];
+      /* painel com login: reconecta a imagem (o site em si nao recarrega,
+         pra nao perder o que alguem estava fazendo nele) */
+      if (p.streamBase) ligarStream(p, true);
+      else carregar(p, enderecoDoPainel(estadoAtual.paineis[i]));
+    });
+  }
+
+  /* Se o servidor estiver fora do ar quando a TV ligar, sobe com o ultimo
+     conteudo conhecido em vez de ficar preta. */
+  try {
+    const salvo = JSON.parse(localStorage.getItem(CHAVE) || "null");
+    if (salvo) aplicar(salvo);
+  } catch (e) {}
+
+  /* ----------------------------------------------------------------------
+     Canal de eventos. O EventSource reconecta sozinho, entao nao precisamos
+     de logica de retry - so refletir o estado no selo de offline.
+     ---------------------------------------------------------------------- */
+  let fonte;
+
+  function conectar() {
+    fonte = new EventSource("/eventos?papel=tv&nome=" + encodeURIComponent(NOME));
+
+    fonte.onopen = function () {
+      selo.classList.remove("visivel");
+      /* o servidor pode ter reiniciado: as imagens dos paineis com login
+         precisam reconectar e informar o tamanho de novo */
+      if (!transmitindoAqui) paineis.forEach(function (p) { if (p.streamBase) ligarStream(p, true); });
+    };
+
+    fonte.onerror = function () { selo.classList.add("visivel"); };
+
+    fonte.onmessage = function (ev) {
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch (e) { return; }
+
+      if (msg.tipo === "estado")            aplicar(msg.estado);
+      else if (msg.tipo === "recarregar")   recarregarTudo();
+      else if (msg.tipo === "oferta")       receberTela(msg);
+      else if (msg.tipo === "ice")          receberIce(msg);
+      else if (msg.tipo === "parar-tela")   encerrarTela();
+    };
+  }
+
+  conectar();
+
+  /* ----------------------------------------------------------------------
+     Recebendo a tela de um dev (WebRTC)
+
+     O video vem direto do PC dele pra ca, ponto a ponto na rede local. O
+     servidor so passou o recado inicial - ele nao carrega o video, entao o
+     Chromebook nao vira gargalo e a latencia fica baixa.
+     ---------------------------------------------------------------------- */
+  const caixaTela = document.getElementById("transmissao");
+  const video     = document.getElementById("video");
+  const quemTexto = document.getElementById("quemTexto");
+
+  let pc = null;
+  let deQuem = null;
+
+  function sinalizar(msg) {
+    fetch("/sinal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(msg)
+    }).catch(function () { /* se o servidor caiu, o encerramento cuida */ });
+  }
+
+  function receberTela(msg) {
+    encerrarTela(true);      /* garante que nao sobrou conexao anterior */
+    pausarStreams();         /* a TV fica so com o video da transmissao */
+    document.body.classList.add("transmitindo");
+    deQuem = msg.de;
+    statsAnterior = null;
+    clearInterval(timerStats);
+    timerStats = setInterval(medirTransmissao, 2000);
+
+    caixaTela.classList.add("visivel");
+    caixaTela.classList.remove("recebendo");
+    quemTexto.textContent = "Transmitindo";
+
+    /* Sem servidor STUN: na mesma rede local os candidatos "host" bastam, e
+       assim nada depende de internet. */
+    pc = new RTCPeerConnection({ iceServers: [] });
+
+    pc.ontrack = function (ev) {
+      /* Reserva fixa e pequena: sem ela o navegador escolhe sozinho (pode
+         passar de 0,5 s); com zero, o video "trava" no ritmo irregular do
+         Wi-Fi. playoutDelayHint e em segundos, jitterBufferTarget em ms. */
+      try { ev.receiver.playoutDelayHint = reservaMs / 1000; } catch (e) {}
+      try { ev.receiver.jitterBufferTarget = reservaMs; } catch (e) {}
+
+      video.srcObject = ev.streams[0];
+      caixaTela.classList.add("recebendo");
+      /* autoplay so e permitido sem som; o video segue mudo de proposito */
+      video.play().catch(function () {});
+    };
+
+    pc.onicecandidate = function (ev) {
+      if (ev.candidate) {
+        sinalizar({ tipo: "ice", para: deQuem, candidate: ev.candidate });
+      }
+    };
+
+    /* O video caiu: encerra aqui E avisa o servidor, senao ele continua
+       achando que a transmissao esta ativa e a pagina do dev fica presa em
+       "transmitindo". "disconnected" pode ser so uma oscilacao do Wi-Fi, entao
+       espera 5 s pra ver se volta antes de desistir. */
+    const conexao = pc;
+    const desistir = function () {
+      if (pc !== conexao) return;
+      if (deQuem !== null) sinalizar({ tipo: "parar", tv: NOME, de: deQuem });
+      encerrarTela();
+    };
+    let timerQueda = null;
+    pc.onconnectionstatechange = function () {
+      if (pc !== conexao) return;
+      const estado = pc.connectionState;
+      clearTimeout(timerQueda);
+      if (estado === "failed" || estado === "closed") desistir();
+      else if (estado === "disconnected") timerQueda = setTimeout(desistir, 5000);
+    };
+
+    pc.setRemoteDescription(msg.sdp)
+      .then(function () { return pc.createAnswer(); })
+      .then(function (resposta) {
+        return pc.setLocalDescription(resposta).then(function () {
+          sinalizar({ tipo: "resposta", para: deQuem, sdp: pc.localDescription });
+        });
+      })
+      .catch(function (e) {
+        console.error("Falhou ao aceitar a transmissao:", e);
+        encerrarTela();
+      });
+  }
+
+  function receberIce(msg) {
+    if (pc && msg.candidate) {
+      pc.addIceCandidate(msg.candidate).catch(function () {});
+    }
+  }
+
+  /* ----------------------------------------------------------------------
+     Medidas da transmissao, mandadas pro PC de quem transmite. Dizem onde
+     esta o atraso: buffer (rede instavel), decodificacao (processador da TV)
+     ou quadros perdidos.
+     ---------------------------------------------------------------------- */
+  let timerStats = null;
+  let statsAnterior = null;
+  /* Reserva de quadros (ms). Pelo Wi-Fi os quadros chegam irregulares; sem
+     reserva a TV mostra no mesmo ritmo irregular e o video parece travado
+     mesmo com 30 quadros/s chegando. Uma reserva pequena deixa o ritmo
+     constante. 100 ms ainda deixava travadas de 200-900 ms na TV Infra (Wi-Fi da TV entregando em rajadas); 250 ms cobre a maioria, por +0,15 s de atraso. */
+  const reservaMs = 250;
+
+  function medirTransmissao() {
+    if (!pc || deQuem === null) return;
+    const para = deQuem;
+    pc.getStats().then(function (relatorio) {
+      let v = null;
+      relatorio.forEach(function (s) { if (s.type === "inbound-rtp" && s.kind === "video") v = s; });
+      if (!v) return;
+      const a = statsAnterior;
+      statsAnterior = v;
+      /* medias do intervalo desde a ultima medida, em milissegundos */
+      const emitidos = v.jitterBufferEmittedCount - (a ? a.jitterBufferEmittedCount : 0);
+      const decodificados = v.framesDecoded - (a ? a.framesDecoded : 0);
+      const dif = function (campo) {
+        return v[campo] !== undefined ? v[campo] - (a && a[campo] !== undefined ? a[campo] : 0) : null;
+      };
+      /* Irregularidade: desvio do intervalo entre quadros mostrados (ms). A 30
+         quadros/s o intervalo ideal e 33 ms sempre; desvio alto = ritmo
+         irregular = video parecendo travado, mesmo com quadros de sobra. */
+      let irregularidade = null;
+      const soma = dif("totalInterFrameDelay"), somaQuad = dif("totalSquaredInterFrameDelay");
+      if (soma !== null && somaQuad !== null && decodificados > 1) {
+        const media = soma / decodificados;
+        irregularidade = Math.round(1000 * Math.sqrt(Math.max(0, somaQuad / decodificados - media * media)));
+      }
+      sinalizar({
+        tipo: "stats", para: para, tv: NOME,
+        dados: {
+          largura: v.frameWidth || 0,
+          altura: v.frameHeight || 0,
+          qps: Math.round(v.framesPerSecond || 0),
+          buffer: emitidos > 0 && v.jitterBufferDelay !== undefined
+            ? Math.round(1000 * (v.jitterBufferDelay - (a ? a.jitterBufferDelay : 0)) / emitidos) : null,
+          decodificacao: decodificados > 0 && v.totalDecodeTime !== undefined
+            ? Math.round(1000 * (v.totalDecodeTime - (a ? a.totalDecodeTime : 0)) / decodificados) : null,
+          perdidos: v.framesDropped || 0,
+          pacotesPerdidos: v.packetsLost || 0,
+          /* congelamentos visiveis na tela nos ultimos 2 s */
+          travadas: dif("freezeCount"),
+          tempoTravado: dif("totalFreezesDuration") !== null ? Math.round(1000 * dif("totalFreezesDuration")) : null,
+          irregularidade: irregularidade,
+          reserva: reservaMs,
+          decodificador: v.decoderImplementation || "",
+          telaTv: screen.width + "x" + screen.height + " @" + (window.devicePixelRatio || 1)
+        }
+      });
+    }).catch(function () {});
+  }
+
+  function encerrarTela(vaiComecarOutra) {
+    clearInterval(timerStats);
+    timerStats = null;
+    document.body.classList.remove("transmitindo");
+    if (pc) { try { pc.close(); } catch (e) {} pc = null; }
+    video.srcObject = null;
+    deQuem = null;
+    caixaTela.classList.remove("visivel", "recebendo");
+    /* o dashboard continuou rodando por baixo, entao a volta e instantanea;
+       so as imagens dos paineis com login voltam a ser buscadas */
+    if (transmitindoAqui && !vaiComecarOutra) retomarStreams();
+  }
+
+  /* ----------------------------------------------------------------------
+     Mostra o endereco de controle por 12 segundos e some
+     ---------------------------------------------------------------------- */
+  const cartao = document.getElementById("endereco");
+  document.getElementById("urlControle").textContent = location.origin;
+
+  /* Confirma que o nome do endereco existe. Se alguem digitou errado na TV,
+     ela ficaria tentando conectar pra sempre sem dizer por que. */
+  let nomeValido = true;
+  fetch("/config").then(function (r) { return r.json(); }).then(function (cfg) {
+    const esta = cfg.tvs.filter(function (t) { return t.id === NOME; })[0];
+    if (esta) {
+      document.getElementById("nomeTv").textContent = esta.nome;
+      document.title = esta.nome;
+    } else {
+      nomeValido = false;
+      if (fonte) fonte.close();
+      mostrarEscolha("TV \"" + NOME + "\" não existe");
+    }
+  }).catch(function () { /* servidor fora: segue com o ultimo estado salvo */ });
+
+  /* So esconde (nunca remove): se a resposta do servidor chegar depois disso
+     dizendo que o nome e invalido, a tela de escolha ainda precisa do cartao.
+     Escondido, ele nao atrapalha cliques. */
+  setTimeout(function () { if (nomeValido) cartao.classList.add("sumindo"); }, 12000);
+
+  /* ----------------------------------------------------------------------
+     Reconciliacao periodica do zoom.
+
+     O ResizeObserver so entrega callback quando a pagina esta sendo desenhada.
+     Se a TV colocar a aba em segundo plano (alguem abriu outro app e voltou),
+     uma mudanca de tamanho pode passar despercebida e o iframe fica com a
+     dimensao errada ate alguem mexer. Timer nao depende do ciclo de render,
+     entao usamos ele como rede de seguranca. E barato: so recalcula quando o
+     tamanho medido realmente diverge do que ja esta aplicado.
+     ---------------------------------------------------------------------- */
+  setInterval(function () {
+    if (!estadoAtual) return;
+    const ativos = estadoAtual.layout === 2 ? paineis : [paineis[0]];
+    ativos.forEach(function (p) {
+      const z = p.zoom > 0 ? p.zoom : 1;
+      const box = p.moldura.getBoundingClientRect();
+      if (box.width < 1) return;
+      const esperado = Math.round(box.width / z);
+      if (Math.abs(parseFloat(p.frame.style.width || 0) - esperado) > 1) ajustarZoom(p);
+
+      /* painel com login: reenvia o tamanho se o servidor nao recebeu, e tira
+         o aviso assim que a imagem chegar */
+      if (p.streamBase) {
+        informarTamanho(p);
+        if (p.img.naturalWidth) p.aviso.classList.remove("visivel");
+      }
+    });
+  }, 2000);
+
+  /* ----------------------------------------------------------------------
+     Cursor: aparece quando alguem mexe o controle, some depois de 4s parado.
+     Movimento dentro do site embutido nao chega aqui, mas tambem nao precisa:
+     la dentro quem decide o cursor e o proprio site.
+     ---------------------------------------------------------------------- */
+  let timerCursor;
+  function cursorAtivo() {
+    document.body.classList.remove("parado");
+    clearTimeout(timerCursor);
+    timerCursor = setTimeout(function () { document.body.classList.add("parado"); }, 4000);
+  }
+  ["mousemove", "mousedown", "wheel"].forEach(function (ev) {
+    document.addEventListener(ev, cursorAtivo, { passive: true });
+  });
+  document.body.classList.add("parado");
+
+  /* ----------------------------------------------------------------------
+     Recarga diaria de madrugada.
+
+     Navegador de TV aberto por dias com sites pesados vai acumulando memoria
+     e ficando lento. Uma vez por dia a pagina inteira recarrega, num horario
+     em que ninguem esta olhando. Nada se perde: o que aparece vem do
+     servidor, e o login dos paineis com login fica guardado no Chromebook.
+
+     So recarrega se o servidor estiver respondendo - senao a TV ficaria
+     presa numa pagina de erro do navegador, sem voltar sozinha - e nunca no
+     meio de uma transmissao. Nesses casos tenta de novo em 10 minutos.
+     ---------------------------------------------------------------------- */
+  const HORA_DA_RECARGA = 4;
+
+  function agendarRecargaDiaria() {
+    const agora = new Date();
+    const alvo = new Date(agora);
+    alvo.setHours(HORA_DA_RECARGA, 0, 0, 0);
+    if (alvo <= agora) alvo.setDate(alvo.getDate() + 1);
+    setTimeout(tentarRecarga, alvo - agora);
+  }
+
+  function tentarRecarga() {
+    const depois = function () { setTimeout(tentarRecarga, 10 * 60 * 1000); };
+    if (pc) { depois(); return; }
+    fetch("/config", { cache: "no-store" })
+      .then(function (r) { if (r.ok) location.reload(); else depois(); })
+      .catch(depois);
+  }
+
+  agendarRecargaDiaria();
+
+  /* ----------------------------------------------------------------------
+     Protecao de tela. A LG liga a protecao de tela quando ninguem mexe no
+     controle e nenhum video esta tocando - e um painel parado parece
+     "nada acontecendo". Um video mudo de 3 s em loop, de 2 pixels e quase
+     transparente, faz a TV considerar que tem video tocando. Se o navegador
+     pausar o video por algum motivo, ele volta a tocar aqui.
+     ---------------------------------------------------------------------- */
+  const acordada = document.getElementById("acordada");
+  function manterAcordada() {
+    /* durante a transmissao o proprio video dela mantem a TV acordada; o
+       pequeno fica parado pra nao ocupar um segundo decodificador da TV */
+    if (transmitindoAqui) { if (!acordada.paused) acordada.pause(); return; }
+    if (acordada.paused) acordada.play().catch(function () {});
+  }
+  acordada.addEventListener("pause", function () { setTimeout(manterAcordada, 1000); });
+  acordada.addEventListener("ended", manterAcordada);
+  setInterval(manterAcordada, 30000);
+  manterAcordada();
+
+  /* Tecla R no controle recarrega, caso alguem esteja na frente da TV */
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "r" || e.key === "R") recarregarTudo();
+  });
+})();
+</script>
+</body>
+</html>

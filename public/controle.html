@@ -1,0 +1,1657 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controle das TVs</title>
+<style>
+  :root {
+    --fundo: #f6f7f9;
+    --cartao: #ffffff;
+    --borda: #dfe3e8;
+    --texto: #1b1f24;
+    --texto-fraco: #6b7480;
+    --destaque: #2563eb;
+    --destaque-texto: #ffffff;
+    --ok: #16a34a;
+    --erro: #dc2626;
+    --campo: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fundo: #0f1216;
+      --cartao: #171b21;
+      --borda: #2a3039;
+      --texto: #e6e9ee;
+      --texto-fraco: #8b94a3;
+      --destaque: #3b82f6;
+      --ok: #22c55e;
+      --erro: #ef4444;
+      --campo: #0f1216;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--fundo);
+    color: var(--texto);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+    padding: 28px 16px 64px;
+  }
+  .conteudo { max-width: 940px; margin: 0 auto; }
+
+  header { margin-bottom: 22px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { font-size: 25px; font-weight: 650; letter-spacing: -.01em; }
+
+  /* Escolha de TV: o primeiro passo de qualquer acao na pagina */
+  .seletor-tv { display: flex; gap: 10px; flex-wrap: wrap; }
+  .seletor-tv button {
+    flex: 1 1 200px;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    background: var(--cartao);
+    border: 1px solid var(--borda);
+    border-radius: 10px;
+    padding: 12px 16px;
+    color: var(--texto);
+    font-family: inherit; font-size: 16px; font-weight: 600;
+    cursor: pointer; text-align: left;
+  }
+  .seletor-tv button .situacao { font-size: 13px; font-weight: 400; color: var(--texto-fraco); display: flex; align-items: center; gap: 7px; }
+  .seletor-tv button .ponto { width: 8px; height: 8px; border-radius: 50%; background: var(--erro); flex: none; }
+  .seletor-tv button.ligada .ponto { background: var(--ok); }
+  .seletor-tv button.transmitindo-nela .ponto { background: var(--erro); box-shadow: 0 0 0 3px rgba(220, 38, 38, .25); }
+  .seletor-tv button.ativo {
+    border-color: var(--destaque);
+    box-shadow: 0 0 0 1px var(--destaque);
+  }
+  .seletor-tv button:disabled { cursor: default; opacity: .55; }
+  .seletor-tv button.ativo:disabled { opacity: 1; }
+
+  .cartao {
+    background: var(--cartao);
+    border: 1px solid var(--borda);
+    border-radius: 12px;
+    padding: 20px 22px;
+    margin-bottom: 16px;
+  }
+  .cartao.inativo { opacity: .45; pointer-events: none; }
+
+  .cartao h2 {
+    font-size: 13px; font-weight: 650;
+    text-transform: uppercase; letter-spacing: .07em;
+    color: var(--texto-fraco);
+    margin-bottom: 16px;
+  }
+
+  label { display: block; font-size: 13px; color: var(--texto-fraco); margin-bottom: 6px; }
+
+  input[type=text], input[type=number] {
+    width: 100%;
+    background: var(--campo);
+    border: 1px solid var(--borda);
+    border-radius: 8px;
+    padding: 11px 13px;
+    font-size: 15px;
+    color: var(--texto);
+    font-family: inherit;
+  }
+  input:focus { outline: 2px solid var(--destaque); outline-offset: -1px; border-color: transparent; }
+
+  .campos { display: grid; grid-template-columns: 1fr 110px; gap: 14px; }
+  .campos .largo { grid-column: 1 / -1; }
+
+  .atalhos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .chip {
+    background: transparent;
+    border: 1px solid var(--borda);
+    border-radius: 999px;
+    padding: 7px 15px;
+    font-size: 13.5px;
+    color: var(--texto);
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .chip:hover { border-color: var(--destaque); color: var(--destaque); }
+
+  .layout { display: flex; gap: 10px; }
+  .layout button {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--borda);
+    border-radius: 9px;
+    padding: 14px;
+    font-size: 15px;
+    color: var(--texto);
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .layout button.ativo {
+    background: var(--destaque);
+    border-color: var(--destaque);
+    color: var(--destaque-texto);
+    font-weight: 600;
+  }
+
+  .acoes {
+    display: flex; gap: 12px; align-items: center;
+    position: sticky; bottom: 0;
+    background: var(--fundo);
+    padding: 16px 0 0;
+    border-top: 1px solid var(--borda);
+    margin-top: 22px;
+  }
+  .botao {
+    border: 1px solid var(--borda);
+    background: transparent;
+    color: var(--texto);
+    border-radius: 9px;
+    padding: 13px 22px;
+    font-size: 15px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .botao.primario {
+    background: var(--destaque);
+    border-color: var(--destaque);
+    color: var(--destaque-texto);
+    font-weight: 600;
+    flex: 1;
+  }
+  .botao:disabled { opacity: .5; cursor: default; }
+
+  #recado { font-size: 14px; color: var(--texto-fraco); min-height: 21px; margin-top: 10px; }
+  #recado.ok  { color: var(--ok); }
+  #recado.erro { color: var(--erro); }
+
+  .dica { font-size: 13px; color: var(--texto-fraco); margin-top: 10px; }
+
+  .explica { font-size: 14px; color: var(--texto-fraco); margin: -6px 0 16px; }
+  .linhaTela { display: flex; gap: 12px; flex-wrap: wrap; }
+  .seletor {
+    background: var(--campo); color: var(--texto);
+    border: 1px solid var(--borda); border-radius: 9px;
+    padding: 12px 14px; font-size: 15px; font-family: inherit;
+  }
+  .linhaTela .botao { flex: 0 0 auto; }
+  .botao.parar { border-color: var(--erro); color: var(--erro); font-weight: 600; }
+
+  .aviso-tela { font-size: 14px; margin-top: 14px; line-height: 1.6; }
+  .aviso-tela.erro { color: var(--erro); }
+  .aviso-tela.ok   { color: var(--ok); }
+  .aviso-tela code {
+    background: var(--fundo); border: 1px solid var(--borda);
+    padding: 2px 7px; border-radius: 5px; font-size: 13px;
+    word-break: break-all;
+  }
+  .aviso-tela ol { margin: 10px 0 0 20px; }
+  .aviso-tela li { margin-bottom: 7px; }
+
+  .medidas {
+    margin-top: 12px; padding: 10px 12px;
+    background: var(--fundo); border: 1px solid var(--borda); border-radius: 8px;
+    font-size: 13px; line-height: 1.7; color: var(--texto-fraco);
+    font-variant-numeric: tabular-nums;
+  }
+  .medidas strong { color: var(--texto); font-weight: 600; }
+  .medidas .alerta { color: var(--erro); }
+
+  .registro {
+    margin-top: 12px; padding: 10px 12px;
+    background: var(--fundo); border: 1px solid var(--borda); border-radius: 8px;
+  }
+  .registro-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .registro-topo strong { font-size: 13px; font-weight: 600; }
+  .registro-topo .botao { padding: 6px 14px; font-size: 13px; }
+  .registro pre {
+    margin: 8px 0 0; max-height: 260px; overflow: auto;
+    font: 12px/1.6 ui-monospace, Consolas, monospace; color: var(--texto-fraco);
+    white-space: pre-wrap; word-break: break-word;
+  }
+
+  .cartao.transmitindo {
+    border-color: var(--erro);
+    box-shadow: 0 0 0 1px var(--erro);
+  }
+
+  /* ---------- Paineis com login ---------- */
+  .modo-painel { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+  .modo-painel select { max-width: 100%; }
+  .modo-painel small { color: var(--texto-fraco); font-size: 13px; line-height: 1.5; }
+
+  .visores { display: flex; flex-direction: column; gap: 22px; }
+  .visor { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .visor-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .visor-topo strong { font-size: 15px; }
+  .visor-situacao { font-size: 13px; color: var(--texto-fraco); }
+  .visor-situacao.ok { color: var(--ok); }
+  .visor-situacao.erro { color: var(--erro); }
+
+  .visor-barra { display: flex; gap: 8px; flex-wrap: wrap; }
+  .visor-barra input { flex: 1 1 220px; min-width: 0; }
+  .visor-barra .botao { padding: 10px 14px; }
+
+  .visor-tela {
+    position: relative;
+    border: 1px solid var(--borda);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+    min-height: 120px;
+  }
+  .visor-tela.digitando { outline: 2px solid var(--destaque); outline-offset: 1px; }
+  .visor-tela img { display: block; width: 100%; height: auto; cursor: pointer; user-select: none; -webkit-user-drag: none; }
+  /* recebe o teclado sem aparecer: o que for digitado vai pro site */
+  .visor-tela textarea {
+    position: absolute; left: 0; top: 0;
+    width: 1px; height: 1px; opacity: 0;
+    border: 0; padding: 0; resize: none; pointer-events: none;
+  }
+  .visor-dica { font-size: 13px; color: var(--texto-fraco); }
+
+  @media (max-width: 620px) {
+    .campos { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="conteudo">
+
+  <header>
+    <h1>Controle das TVs</h1>
+    <div class="seletor-tv" id="seletorTv" role="group" aria-label="Qual TV você quer controlar"></div>
+  </header>
+
+  <div class="cartao" id="cartaoTela">
+    <h2 id="tituloTela">Mostrar meu PC na TV</h2>
+    <p class="explica">
+      Transmite a sua tela ao vivo. Serve pra mostrar app que não tem endereço web —
+      simulação, IDE, terminal. A TV volta sozinha pro painel quando você parar.
+    </p>
+    <div class="linhaTela">
+      <button class="botao primario" id="compartilhar">Compartilhar minha tela</button>
+      <button class="botao parar" id="pararTela" style="display:none">Parar transmissão</button>
+    </div>
+    <div id="avisoTela" class="aviso-tela"></div>
+    <div id="medidas" class="medidas" hidden></div>
+    <div id="registro" class="registro" hidden>
+      <div class="registro-topo">
+        <strong>Registro da sessão</strong>
+        <button class="botao" id="copiarRegistro">Copiar</button>
+      </div>
+      <pre id="textoRegistro"></pre>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <h2>Layout</h2>
+    <div class="layout">
+      <button id="layout1" data-layout="1">Um painel</button>
+      <button id="layout2" data-layout="2">Dividir em dois</button>
+    </div>
+  </div>
+
+  <div class="cartao" id="cartao0">
+    <h2 id="tituloCartao0">O que aparece na TV</h2>
+    <div class="campos">
+      <div class="largo">
+        <label for="url0">Endereço</label>
+        <input type="text" id="url0" placeholder="cole aqui a URL que quer mostrar" spellcheck="false">
+      </div>
+      <div>
+        <label for="nome0">Nome (aparece no topo)</label>
+        <input type="text" id="nome0" placeholder="opcional">
+      </div>
+      <div>
+        <label for="zoom0">Zoom</label>
+        <input type="number" id="zoom0" step="0.1" min="0.4" max="3" value="1.2">
+      </div>
+    </div>
+    <div class="modo-painel">
+      <label for="modo0">Como abrir</label>
+      <select id="modo0" class="seletor">
+        <option value="site">Site normal</option>
+        <option value="intermediario">Site com login, direto na TV (recomendado)</option>
+        <option value="remoto">Site com login, pelo navegador do Chromebook</option>
+      </select>
+      <small id="explicaModo0"></small>
+    </div>
+    <div class="atalhos" id="atalhos0"></div>
+  </div>
+
+  <div class="cartao inativo" id="cartao1">
+    <h2>Painel da direita</h2>
+    <div class="campos">
+      <div class="largo">
+        <label for="url1">Endereço</label>
+        <input type="text" id="url1" placeholder="cole aqui a URL que quer mostrar" spellcheck="false">
+      </div>
+      <div>
+        <label for="nome1">Nome (aparece no topo)</label>
+        <input type="text" id="nome1" placeholder="opcional">
+      </div>
+      <div>
+        <label for="zoom1">Zoom</label>
+        <input type="number" id="zoom1" step="0.1" min="0.4" max="3" value="1.2">
+      </div>
+    </div>
+    <div class="modo-painel">
+      <label for="modo1">Como abrir</label>
+      <select id="modo1" class="seletor">
+        <option value="site">Site normal</option>
+        <option value="intermediario">Site com login, direto na TV (recomendado)</option>
+        <option value="remoto">Site com login, pelo navegador do Chromebook</option>
+      </select>
+      <small id="explicaModo1"></small>
+    </div>
+    <div class="atalhos" id="atalhos1"></div>
+  </div>
+
+  <div class="cartao" id="cartaoRemoto" hidden>
+    <h2>Ver e usar os sites com login</h2>
+    <p class="explica">
+      É a mesma imagem que está na TV. Clique nela e use o teclado normalmente para fazer
+      login: o que você digita vai direto pro site. O login fica guardado no Chromebook,
+      então só precisa ser feito de novo se o site deslogar.
+    </p>
+    <div class="visores" id="visores"></div>
+  </div>
+
+  <div class="acoes">
+    <button class="botao primario" id="aplicar">Mandar pra TV</button>
+    <button class="botao" id="recarregar">Recarregar TV</button>
+  </div>
+  <div id="recado"></div>
+  <div class="dica">
+    Zoom maior deixa a letra maior pra ler de longe. 1.2 costuma ser bom em tela cheia,
+    1.4 quando dividido em dois.
+  </div>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const el = function (id) { return document.getElementById(id); };
+
+  let tvs = [];             /* [{ id, nome }] vindo do servidor */
+  let atalhos = [];
+  let estados = {};         /* painel de cada TV */
+  let presenca = {};        /* quantas abas de cada TV estao conectadas */
+  let quemNa = {};          /* id de quem transmite em cada TV, ou null */
+  let tvAtual = null;       /* a TV que este dev esta controlando */
+  let layout = 1;
+  let editando = false;     /* trava a sincronizacao enquanto o dev digita */
+
+  const recado = el("recado");
+
+  const campos = [
+    { url: el("url0"), nome: el("nome0"), zoom: el("zoom0"), modo: el("modo0"), explica: el("explicaModo0"), atalhos: el("atalhos0") },
+    { url: el("url1"), nome: el("nome1"), zoom: el("zoom1"), modo: el("modo1"), explica: el("explicaModo1"), atalhos: el("atalhos1") }
+  ];
+
+  /* ----------------------------------------------------------------------
+     Como abrir cada painel: a explicacao muda conforme a escolha, e a opcao
+     do intermediario so vale pros sites cadastrados no servidor.
+     ---------------------------------------------------------------------- */
+  let intermediarios = [];   /* [{ site, porta }] vindo do servidor */
+
+  function explicarModo(c) {
+    const m = c.modo.value;
+    if (m === "intermediario") {
+      c.explica.textContent = intermediarios.length
+        ? "O site roda no navegador da própria TV, nítido e com cliques normais. Faça o login uma vez na TV " +
+          "(controle remoto ou teclado USB): ele fica salvo. Sites disponíveis: " +
+          intermediarios.map(function (i) { return i.site.replace(/^https?:\/\//, ""); }).join(", ") + "."
+        : "Nenhum site cadastrado no intermediário (lista INTERMEDIARIOS no server.js).";
+    } else if (m === "remoto") {
+      c.explica.textContent = "O site roda num navegador dentro do Chromebook, que manda a imagem pra TV. " +
+        "O login é feito aqui, em \"Ver e usar\". Use se o intermediário não funcionar com o site.";
+    } else {
+      c.explica.textContent = "";
+    }
+  }
+
+  campos.forEach(function (c) {
+    c.modo.addEventListener("change", function () { explicarModo(c); });
+  });
+
+  function nomeDa(tv) {
+    const t = tvs.filter(function (x) { return x.id === tv; })[0];
+    return t ? t.nome : tv;
+  }
+
+  /* ----------------------------------------------------------------------
+     Escolha de TV
+
+     Cada PC lembra a ultima TV escolhida, entao o dev de infra abre a pagina
+     e ja cai na TV dele. Tambem da pra fixar pelo endereco: /?tv=infra
+     ---------------------------------------------------------------------- */
+  const CHAVE_TV = "controle-tv-escolhida";
+
+  function tvInicial() {
+    const peloEndereco = new URLSearchParams(location.search).get("tv");
+    let salva = null;
+    try { salva = localStorage.getItem(CHAVE_TV); } catch (e) {}
+    const valida = function (id) { return tvs.some(function (t) { return t.id === id; }); };
+    if (valida(peloEndereco)) return peloEndereco;
+    if (valida(salva)) return salva;
+    return tvs.length ? tvs[0].id : null;
+  }
+
+  function escolherTv(id) {
+    tvAtual = id;
+    try { localStorage.setItem(CHAVE_TV, id); } catch (e) {}
+    editando = false;
+    desenharSeletor();
+    desenharAtalhos();
+    if (estados[id]) refletir(estados[id], true);
+    desenharRemoto();
+    refletirTela();
+    document.title = "Controle · " + nomeDa(id);
+  }
+
+  function desenharSeletor() {
+    const caixa = el("seletorTv");
+    caixa.textContent = "";
+    tvs.forEach(function (t) {
+      const b = document.createElement("button");
+      b.type = "button";
+      const ligada = (presenca[t.id] || 0) > 0;
+      const transmitindo = quemNa[t.id] !== null && quemNa[t.id] !== undefined;
+      b.className = (t.id === tvAtual ? "ativo " : "") +
+                    (ligada ? "ligada " : "") +
+                    (transmitindo ? "transmitindo-nela" : "");
+      b.setAttribute("aria-pressed", t.id === tvAtual ? "true" : "false");
+
+      const nome = document.createElement("span");
+      nome.textContent = t.nome;
+      const situacao = document.createElement("span");
+      situacao.className = "situacao";
+      const ponto = document.createElement("span");
+      ponto.className = "ponto";
+      const texto = document.createElement("span");
+      texto.textContent = !ligada ? "desconectada"
+        : transmitindo ? (quemNa[t.id] === meuId ? "você está transmitindo" : "alguém está transmitindo")
+        : "conectada";
+      situacao.append(ponto, texto);
+      b.append(nome, situacao);
+
+      /* enquanto transmite, nao deixa trocar de TV: a transmissao continua na
+         TV escolhida e os botoes da pagina passariam a mexer em outra */
+      b.disabled = !!pc && t.id !== tvAtual;
+      b.addEventListener("click", function () { if (t.id !== tvAtual) escolherTv(t.id); });
+      caixa.appendChild(b);
+    });
+  }
+
+  /* ----------------------------------------------------------------------
+     Se o dev esta mexendo nos campos, nao sobrescrevemos com o que chega do
+     servidor - senao o texto dele some no meio da digitacao.
+     ---------------------------------------------------------------------- */
+  campos.forEach(function (c) {
+    [c.url, c.nome, c.zoom].forEach(function (input) {
+      input.addEventListener("focus", function () { editando = true; });
+      input.addEventListener("blur",  function () { editando = false; });
+    });
+    c.url.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); aplicar(); }
+    });
+  });
+
+  /* ----------------------------------------------------------------------
+     Layout
+     ---------------------------------------------------------------------- */
+  function desenharLayout() {
+    el("layout1").classList.toggle("ativo", layout === 1);
+    el("layout2").classList.toggle("ativo", layout === 2);
+    el("cartao1").classList.toggle("inativo", layout === 1);
+    el("tituloCartao0").textContent = layout === 1
+      ? "O que aparece na " + nomeDa(tvAtual)
+      : "Painel da esquerda";
+  }
+
+  el("layout1").addEventListener("click", function () { layout = 1; desenharLayout(); });
+  el("layout2").addEventListener("click", function () { layout = 2; desenharLayout(); });
+
+  /* ----------------------------------------------------------------------
+     Atalhos: os sem "tv" aparecem pras duas; os com "tv", so pra aquela
+     ---------------------------------------------------------------------- */
+  function desenharAtalhos() {
+    const daTv = atalhos.filter(function (a) { return !a.tv || a.tv === tvAtual; });
+    campos.forEach(function (c) {
+      c.atalhos.textContent = "";
+      daTv.forEach(function (a) {
+        const b = document.createElement("button");
+        b.className = "chip";
+        b.type = "button";
+        b.textContent = a.nome;
+        b.addEventListener("click", function () {
+          c.url.value = a.url;
+          c.nome.value = a.nome;
+          c.zoom.value = a.zoom;
+        });
+        c.atalhos.appendChild(b);
+      });
+    });
+  }
+
+  /* ----------------------------------------------------------------------
+     Refletir o painel da TV escolhida
+     ---------------------------------------------------------------------- */
+  function refletir(estado, forcar) {
+    if (editando && !forcar) return;
+    layout = estado.layout;
+    desenharLayout();
+    estado.paineis.forEach(function (p, i) {
+      campos[i].url.value = p.url;
+      campos[i].nome.value = p.titulo;
+      campos[i].zoom.value = p.zoom;
+      campos[i].modo.value = p.modo || "site";
+      explicarModo(campos[i]);
+    });
+  }
+
+  function dizer(texto, classe) {
+    recado.textContent = texto;
+    recado.className = classe || "";
+    if (texto) setTimeout(function () {
+      if (recado.textContent === texto) { recado.textContent = ""; recado.className = ""; }
+    }, 4000);
+  }
+
+  /* ----------------------------------------------------------------------
+     Enviar
+     ---------------------------------------------------------------------- */
+  function aplicar() {
+    if (!tvAtual) return;
+    const alvo = tvAtual;
+    const corpo = {
+      tv: alvo,
+      layout: layout,
+      paineis: campos.map(function (c) {
+        return {
+          url: c.url.value.trim(),
+          titulo: c.nome.value.trim(),
+          zoom: parseFloat(c.zoom.value) || 1,
+          modo: c.modo.value
+        };
+      })
+    };
+
+    el("aplicar").disabled = true;
+    fetch("/estado", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo)
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (r) {
+      if (r.erro) dizer(r.erro, "erro");
+      else if (r.telas === 0) dizer("Salvo, mas a " + nomeDa(alvo) + " não está conectada agora.", "erro");
+      else dizer("Pronto, já está na " + nomeDa(alvo) + ".", "ok");
+    })
+    .catch(function () { dizer("Não consegui falar com o servidor.", "erro"); })
+    .then(function () { el("aplicar").disabled = false; });
+  }
+
+  el("aplicar").addEventListener("click", aplicar);
+
+  /* ======================================================================
+     Sites com login: ver e usar o navegador do Chromebook
+
+     Mostra a mesma imagem que vai pra TV. Clique, rolagem e teclado daqui
+     vao pro site, la no Chromebook - e por aqui que se faz o login.
+     ====================================================================== */
+  const visores = el("visores");
+  let visoresChave = "";
+
+  /* Enquanto este PC transmite a tela, as imagens de "Ver e usar" ficam
+     pausadas: receber e desenhar elas ocupava o Chrome e derrubava os
+     quadros da transmissao. Trocar pela imagem vazia fecha a conexao. */
+  const IMAGEM_VAZIA = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+  function pausarVisores() {
+    visores.querySelectorAll("img[data-base]").forEach(function (img) { img.src = IMAGEM_VAZIA; });
+  }
+
+  function retomarVisores() {
+    visores.querySelectorAll("img[data-base]").forEach(function (img) {
+      img.src = img.dataset.base + "&t=" + Date.now();
+    });
+  }
+
+  function paineisComLogin() {
+    const e = estados[tvAtual];
+    if (!e) return [];
+    const lista = [];
+    e.paineis.forEach(function (p, i) {
+      if (p.modo === "remoto" && (i === 0 || e.layout === 2)) lista.push({ painel: p, indice: i, layout: e.layout });
+    });
+    return lista;
+  }
+
+  function desenharRemoto() {
+    const lista = paineisComLogin();
+    el("cartaoRemoto").hidden = lista.length === 0;
+
+    /* so recria quando muda quais paineis tem login: recriar a imagem
+       derruba e refaz a conexao com o Chromebook */
+    const chave = tvAtual + "|" + lista.map(function (x) { return x.indice + "=" + x.painel.url; }).join(",");
+    if (chave === visoresChave) return;
+    visoresChave = chave;
+
+    visores.textContent = "";
+    lista.forEach(function (x) { visores.appendChild(criarVisor(tvAtual, x)); });
+    atualizarSituacao();
+  }
+
+  function criarVisor(tv, x) {
+    const i = x.indice;
+    const raiz = document.createElement("div");
+    raiz.className = "visor";
+    raiz.dataset.chave = tv + ":" + i;
+
+    /* fila: cliques e teclas chegam ao site na ordem em que foram feitos */
+    let fila = Promise.resolve();
+    function mandar(dados) {
+      dados.tv = tv;
+      dados.painel = i;
+      fila = fila.then(function () {
+        return fetch("/remoto/entrada", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(dados)
+        }).then(function (r) { return r.json(); })
+          .then(function (r) { if (r.erro) situacao.textContent = r.erro; })
+          .catch(function () {});
+      });
+    }
+
+    /* topo: qual painel e situacao do navegador */
+    const topo = document.createElement("div");
+    topo.className = "visor-topo";
+    const titulo = document.createElement("strong");
+    titulo.textContent = (x.layout === 2 ? (i === 0 ? "Painel da esquerda" : "Painel da direita") : "Painel da TV") +
+                         (x.painel.titulo ? " · " + x.painel.titulo : "");
+    const situacao = document.createElement("span");
+    situacao.className = "visor-situacao";
+    situacao.textContent = "abrindo o navegador...";
+    topo.append(titulo, situacao);
+
+    /* barra: voltar, recarregar, endereco */
+    const barra = document.createElement("div");
+    barra.className = "visor-barra";
+    const voltar = document.createElement("button");
+    voltar.type = "button";
+    voltar.className = "botao";
+    voltar.textContent = "← Voltar";
+    voltar.addEventListener("click", function () { mandar({ tipo: "voltar" }); });
+    const recarregar = document.createElement("button");
+    recarregar.type = "button";
+    recarregar.className = "botao";
+    recarregar.textContent = "Recarregar site";
+    recarregar.addEventListener("click", function () { mandar({ tipo: "recarregar" }); });
+    const endereco = document.createElement("input");
+    endereco.type = "text";
+    endereco.id = "endereco-" + tv + "-" + i;
+    endereco.value = x.painel.url;
+    endereco.spellcheck = false;
+    endereco.setAttribute("aria-label", "Endereço do site neste painel");
+    const ir = document.createElement("button");
+    ir.type = "button";
+    ir.className = "botao";
+    ir.textContent = "Ir";
+    const navegar = function () { if (endereco.value.trim()) mandar({ tipo: "navegar", url: endereco.value.trim() }); };
+    ir.addEventListener("click", navegar);
+    endereco.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); navegar(); } });
+    barra.append(voltar, recarregar, endereco, ir);
+
+    /* tela: imagem + campo invisivel que recebe o teclado */
+    const tela = document.createElement("div");
+    tela.className = "visor-tela";
+    const img = document.createElement("img");
+    img.alt = "Site com login, como aparece na TV";
+    img.draggable = false;
+    const base = "/remoto/stream?tv=" + encodeURIComponent(tv) + "&painel=" + i;
+    img.dataset.base = base;
+    /* se este PC ja estiver transmitindo, a imagem so liga quando terminar */
+    img.src = pc ? IMAGEM_VAZIA : base + "&t=" + Date.now();
+    img.addEventListener("error", function () {
+      /* painel ainda abrindo ou servidor reiniciou: tenta de novo */
+      setTimeout(function () { if (img.isConnected && !pc) img.src = base + "&t=" + Date.now(); }, 3000);
+    });
+
+    const teclado = document.createElement("textarea");
+    teclado.setAttribute("aria-label", "Teclado do site: o que for digitado aqui vai para o site");
+    teclado.autocomplete = "off";
+    teclado.spellcheck = false;
+
+    function posicao(e) {
+      const r = img.getBoundingClientRect();
+      return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+    }
+
+    img.addEventListener("click", function (e) {
+      const pos = posicao(e);
+      mandar({ tipo: "clique", x: pos.x, y: pos.y });
+      teclado.focus({ preventScroll: true });
+    });
+
+    let rolagem = 0, timerRolagem = null, ultimaPos = null;
+    tela.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      ultimaPos = posicao(e);
+      rolagem += e.deltaY;
+      if (timerRolagem) return;
+      timerRolagem = setTimeout(function () {
+        mandar({ tipo: "rolar", x: ultimaPos.x, y: ultimaPos.y, deltaY: rolagem });
+        rolagem = 0;
+        timerRolagem = null;
+      }, 60);
+    }, { passive: false });
+
+    /* Teclas que nao viram texto (Enter, Tab, setas...) e atalhos com Ctrl
+       vao como tecla. Ctrl+V fica de fora: a colagem chega pelo "input". */
+    const ESPECIAIS = ["Enter", "Backspace", "Tab", "Escape", "Delete",
+      "ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown", "Home", "End", "PageUp", "PageDown"];
+    teclado.addEventListener("keydown", function (e) {
+      if (e.isComposing) return;
+      const atalho = (e.ctrlKey || e.metaKey) && e.key.length === 1 && e.key.toLowerCase() !== "v";
+      if (ESPECIAIS.indexOf(e.key) >= 0 || atalho) {
+        e.preventDefault();
+        mandar({ tipo: "tecla", tecla: e.key, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey, meta: e.metaKey });
+      }
+    });
+    teclado.addEventListener("input", function (e) {
+      if (e.isComposing) return;
+      const texto = teclado.value;
+      teclado.value = "";
+      if (texto) mandar({ tipo: "texto", texto: texto });
+    });
+    teclado.addEventListener("compositionend", function () {
+      const texto = teclado.value;
+      teclado.value = "";
+      if (texto) mandar({ tipo: "texto", texto: texto });
+    });
+    teclado.addEventListener("focus", function () { tela.classList.add("digitando"); });
+    teclado.addEventListener("blur", function () { tela.classList.remove("digitando"); });
+
+    tela.append(img, teclado);
+
+    const dica = document.createElement("p");
+    dica.className = "visor-dica";
+    dica.textContent = "Clique na imagem para usar o site. Com a borda azul, o teclado vai pro site " +
+                       "(Enter, Tab, Backspace, setas e Ctrl+V funcionam).";
+
+    raiz.append(topo, barra, tela, dica);
+    raiz.situacao = situacao;
+    return raiz;
+  }
+
+  /* Situacao do navegador do Chromebook, enquanto houver site com login na tela */
+  function atualizarSituacao() {
+    if (el("cartaoRemoto").hidden) return;
+    fetch("/remoto/situacao")
+      .then(function (r) { return r.json(); })
+      .then(function (s) {
+        Array.prototype.forEach.call(visores.children, function (v) {
+          const info = s.abas[v.dataset.chave];
+          if (!info) return;
+          v.situacao.className = "visor-situacao " + (info.pronto ? "ok" : (info.erro ? "erro" : ""));
+          v.situacao.textContent = info.pronto ? "navegador pronto"
+            : info.erro ? "problema: " + info.erro
+            : "abrindo o navegador...";
+        });
+      })
+      .catch(function () {});
+  }
+  setInterval(atualizarSituacao, 3000);
+
+  el("recarregar").addEventListener("click", function () {
+    fetch("/recarregar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tv: tvAtual })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function () { dizer("Mandei a " + nomeDa(tvAtual) + " recarregar.", "ok"); })
+      .catch(function () { dizer("Não consegui falar com o servidor.", "erro"); });
+  });
+
+  /* ======================================================================
+     Compartilhamento de tela
+
+     A tela capturada vai direto deste PC para a TV, ponto a ponto na rede
+     local. O servidor so troca os recados de conexao - ele nao transporta o
+     video, entao o Chromebook nao limita a qualidade, mesmo com as duas TVs
+     recebendo transmissao ao mesmo tempo.
+     ====================================================================== */
+
+  let meuId = null;
+  let pc = null;
+  let stream = null;
+  let ritmo = null;             /* mantem 30 quadros/s mesmo com a tela parada */
+  let tvDaTransmissao = null;   /* fica fixa do inicio ao fim da transmissao */
+  let iceNaFila = [];           /* candidatos gerados antes de a TV aceitar */
+  let ofertaAceita = false;
+
+  const cartaoTela  = el("cartaoTela");
+  const btCompart   = el("compartilhar");
+  const btParar     = el("pararTela");
+  const avisoTela   = el("avisoTela");
+
+  /* Mensagens viram texto puro: parte delas vem do servidor ou do navegador.
+     So o passo a passo da flag do Chrome, que e fixo, usa HTML. */
+  function avisar(texto, classe, comoHtml) {
+    if (comoHtml) avisoTela.innerHTML = texto;
+    else avisoTela.textContent = texto;
+    avisoTela.className = "aviso-tela" + (classe ? " " + classe : "");
+  }
+
+  function sinalizar(msg) {
+    return fetch("/sinal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(msg)
+    }).then(function (r) { return r.json().then(function (c) { return { ok: r.ok, corpo: c }; }); });
+  }
+
+  /* ----------------------------------------------------------------------
+     A captura de tela so existe em "contexto seguro" (https ou localhost).
+     Como o servidor roda em http num IP da rede, o navegador esconde a API.
+     Em vez de dar erro seco na hora do clique, avisamos logo e explicamos a
+     saida - que e liberar essa origem uma vez no Chrome de cada dev.
+     ---------------------------------------------------------------------- */
+  function capturaDisponivel() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+  }
+
+  const avisoFlag =
+    'O Chrome bloqueia captura de tela em endereço <code>http://</code>. ' +
+    'Libere esta origem uma vez (leva 1 minuto, é só na primeira vez):' +
+    '<ol>' +
+      '<li>Abra <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code></li>' +
+      '<li>Marque <strong>Enabled</strong> e escreva no campo: <code>' + location.origin + '</code></li>' +
+      '<li>Clique em <strong>Relaunch</strong> para reiniciar o Chrome</li>' +
+    '</ol>';
+
+  /* Botao e aviso refletem a TV escolhida: livre, ocupada por outra pessoa,
+     ou com a minha transmissao */
+  function refletirTela() {
+    el("tituloTela").textContent = "Mostrar meu PC na " + nomeDa(tvAtual);
+    if (pc) return;   /* durante a minha transmissao, quem manda e o fluxo dela */
+
+    if (!capturaDisponivel()) {
+      btCompart.disabled = true;
+      avisar(avisoFlag, "erro", true);
+      return;
+    }
+    const ocupada = quemNa[tvAtual] !== null && quemNa[tvAtual] !== undefined && quemNa[tvAtual] !== meuId;
+    btCompart.disabled = ocupada;
+    if (ocupada) avisar("Outra pessoa está transmitindo na " + nomeDa(tvAtual) + ". Espere ela parar.", "erro");
+    else if (avisoTela.classList.contains("erro")) avisar("");
+  }
+
+  /* ----------------------------------------------------------------------
+     Iniciar
+     ---------------------------------------------------------------------- */
+  btCompart.addEventListener("click", function () {
+    if (!capturaDisponivel() || !tvAtual) return;
+
+    btCompart.disabled = true;
+    avisar("Escolha a janela ou a tela inteira...");
+
+    const alvo = tvAtual;
+    const perfil = PERFIL;
+    navigator.mediaDevices.getDisplayMedia({
+      video: {
+        frameRate: { ideal: perfil.qps, max: perfil.qps },
+        width:  { max: perfil.largura },
+        height: { max: perfil.altura }
+      },
+      audio: false
+    })
+    .then(function (s) {
+      stream = s;
+      tvDaTransmissao = alvo;
+      iceNaFila = [];
+      ofertaAceita = false;
+      iniciarRegistro(alvo);
+
+      /* so uma dica do que priorizar (nao mexe em banda): com o processador
+         apertado, o codificador reduz a nitidez antes de pular quadros */
+      try { stream.getVideoTracks()[0].contentHint = perfil.dica; } catch (e) {}
+
+      /* o Chrome mostra a propria barra "Parar compartilhamento"; se o dev
+         usar aquela, precisamos encerrar aqui tambem */
+      stream.getVideoTracks()[0].addEventListener("ended", function () {
+        pararTransmissao();
+      });
+
+      pc = new RTCPeerConnection({ iceServers: [] });
+      desenharSeletor();   /* trava a troca de TV enquanto transmite */
+      pausarVisores();     /* o Chrome fica livre pra capturar e codificar */
+
+      ritmo = ritmoConstante(stream.getVideoTracks()[0], perfil.qps);
+      if (ritmo) {
+        try { ritmo.trilha.contentHint = perfil.dica; } catch (e) {}
+        pc.addTrack(ritmo.trilha, stream);
+      } else {
+        stream.getTracks().forEach(function (t) { pc.addTrack(t, stream); });
+      }
+
+      preferirVp8(pc);
+      ajustarEnvio(pc);
+
+      /* Os candidatos de rede comecam a sair antes de o servidor registrar a
+         oferta. Mandados cedo demais, seriam descartados - entao seguramos
+         ate a oferta ser aceita e mandamos todos de uma vez. */
+      pc.onicecandidate = function (ev) {
+        if (!ev.candidate) return;
+        const msg = { tipo: "ice", tv: alvo, de: meuId, candidate: ev.candidate };
+        if (ofertaAceita) sinalizar(msg).catch(function () {});
+        else iceNaFila.push(msg);
+      };
+
+      /* Se o video nao chegar na TV, encerra sozinho e explica - antes a
+         pagina ficava presa em "transmitindo" com a TV sem receber nada. */
+      const conexao = pc;
+      let avisoRede = "";
+      const falhou = function (motivo) {
+        if (pc !== conexao) return;
+        registrar("PROBLEMA: " + motivo + (avisoRede ? " " + avisoRede : ""));
+        pararTransmissao();
+        avisar(motivo + (avisoRede ? " " + avisoRede : ""), "erro");
+      };
+      let timerQueda = null;
+      /* nao conectou em 15 s: na pratica, nao vai conectar */
+      const timerConexao = setTimeout(function () {
+        if (pc === conexao && pc.connectionState !== "connected") {
+          falhou("A conexão com a " + nomeDa(alvo) + " não fechou em 15 segundos.");
+        }
+      }, 15000);
+
+      pc.onconnectionstatechange = function () {
+        if (pc !== conexao) return;
+        const estado = pc.connectionState;
+        clearTimeout(timerQueda);
+        if (estado === "connected") {
+          clearTimeout(timerConexao);
+          ajustarEnvio(pc);   /* reforca: alguns Chromes so aceitam apos conectar */
+          registrar("Conectado com a " + nomeDa(alvo) + ".");
+          iniciarMedidas();
+          avisar("Transmitindo. A " + nomeDa(alvo) + " está mostrando sua tela.", "ok");
+        } else if (estado === "failed") {
+          clearTimeout(timerConexao);
+          falhou("A conexão com a " + nomeDa(alvo) + " caiu.");
+        } else if (estado === "disconnected") {
+          /* pode ser so uma oscilacao do Wi-Fi: espera 5 s pra ver se volta */
+          registrar("A conexão oscilou; esperando até 5 s pra ver se volta.");
+          timerQueda = setTimeout(function () {
+            if (pc === conexao && pc.connectionState === "disconnected") {
+              falhou("A conexão com a " + nomeDa(alvo) + " caiu.");
+            }
+          }, 5000);
+        }
+      };
+
+      return pc.createOffer()
+        .then(function (oferta) { return pc.setLocalDescription(oferta); })
+        .then(function () {
+          return sinalizar({ tipo: "oferta", tv: alvo, de: meuId, sdp: pc.localDescription });
+        })
+        .then(function (r) {
+          if (!r.ok) throw new Error(r.corpo.erro || "Não consegui iniciar.");
+          ofertaAceita = true;
+          iceNaFila.forEach(function (m) { sinalizar(m).catch(function () {}); });
+          iceNaFila = [];
+          /* o servidor avisa quando este PC e a TV estao em redes diferentes */
+          avisoRede = r.corpo.aviso || "";
+          avisar(avisoRede || ("Conectando com a " + nomeDa(alvo) + "..."), avisoRede ? "erro" : "");
+          btParar.style.display = "";
+          cartaoTela.classList.add("transmitindo");
+        });
+    })
+    .catch(function (e) {
+      /* limpa ANTES de avisar: limpar() redesenha o cartao e apagava o
+         motivo da falha (ex.: "Esta TV não está conectada") na mesma hora */
+      limpar();
+      /* o dev cancelou a janela de escolha: nao e erro, so volta ao normal */
+      if (e && e.name === "NotAllowedError") avisar("");
+      else {
+        registrar("PROBLEMA ao iniciar: " + ((e && e.message) || "não consegui iniciar a transmissão."));
+        avisar((e && e.message) || "Não consegui iniciar a transmissão.", "erro");
+      }
+    });
+  });
+
+  /* ----------------------------------------------------------------------
+     Qualidade: um modo so, o que funcionou nas medidas (ver REGISTRO-TECNICO).
+
+     Codificador sempre VP8. O H.264 pela placa de video AMD ignora o
+     controle de banda (15,8 Mbps pra 720p) e o excesso vira fila de 1 s ou
+     mais dentro do PC; o "automatico" do Chrome comecava com 0,1 Mbps e a
+     imagem ficava horrivel. O VP8 respeita os limites abaixo.
+     ---------------------------------------------------------------------- */
+  function preferirVp8(conexao) {
+    if (!window.RTCRtpSender || !RTCRtpSender.getCapabilities) return;
+    const caps = RTCRtpSender.getCapabilities("video");
+    if (!caps) return;
+    const padrao = /vp8/i;
+    const escolhido = caps.codecs.filter(function (c) { return padrao.test(c.mimeType); });
+    const resto = caps.codecs.filter(function (c) { return !padrao.test(c.mimeType); });
+    if (!escolhido.length) return;
+
+    conexao.getTransceivers().forEach(function (t) {
+      if (t.sender && t.sender.track && t.sender.track.kind === "video" && t.setCodecPreferences) {
+        try { t.setCodecPreferences(escolhido.concat(resto)); } catch (e) {}
+      }
+    });
+  }
+
+  /* 720p a 30 quadros/s: movimento suave e menos da metade do trabalho de
+     1080p (que em 15 quadros/s parecia travado).
+       inicio: banda com que comeca (kbps). Sem isso o Chrome comeca em ~0,3
+               Mbps e a imagem fica horrivel nos primeiros segundos.
+       minimo: piso (kbps), pra nunca cair pra imagem ilegivel.
+       banda:  teto. 720p a 30 qps fica nitido com 2-4 Mbps; teto de 6 Mbps
+               evita estourar o Wi-Fi da TV, o que viraria atraso.
+       dica:   o que o codificador preserva quando falta processador
+       ceder:  o que ele sacrifica primeiro (a nitidez, nunca a fluidez) */
+  const PERFIL = { largura: 1280, altura: 720, qps: 30, inicio: 2500, minimo: 1000, banda: 6000000,
+                   dica: "motion", ceder: "maintain-framerate" };
+
+  /* Ritmo constante. O Chrome so manda quadro quando a tela muda: com a tela
+     parada cai pra ~1 quadro/s. O player de video da LG "dorme" nessas
+     pausas e, quando o movimento volta, fica 1-2 s congelado antes de
+     alcancar (medido em 20/10 na TV Infra: toda travada vinha logo depois de
+     um momento de tela parada, com zero pacote perdido). Aqui um relogio fixo
+     manda sempre o quadro mais recente, novo ou repetido, a cada 33 ms, com
+     o carimbo de tempo do relogio (e nao da hora em que saiu): a TV ve um
+     ritmo perfeitamente igual. Quadro repetido custa quase nada de banda.
+     A 1a versao mandava os quadros novos na hora e so repetia nas pausas: os
+     dois se misturavam em intervalos irregulares e o codificador descartava
+     os que vinham perto demais (PC mandando 5-20 q/s com a tela a 20-29).
+     O relogio roda num Worker: o Chrome atrasa os timers de abas em segundo
+     plano (o dev fica no app dele, nao nesta aba), mas nao os de Workers.
+     Navegador sem essas APIs: volta a mandar a trilha original. */
+  function ritmoConstante(original, qps) {
+    if (typeof MediaStreamTrackProcessor !== "function" || typeof MediaStreamTrackGenerator !== "function" ||
+        typeof VideoFrame !== "function" || typeof Worker !== "function") return null;
+    let leitor, escritor, gerador, relogio;
+    try {
+      leitor = new MediaStreamTrackProcessor({ track: original }).readable.getReader();
+      gerador = new MediaStreamTrackGenerator({ kind: "video" });
+      escritor = gerador.writable.getWriter();
+      /* tique curto; quem decide a hora de mandar e a agenda abaixo */
+      const codigo = "setInterval(function () { postMessage(0); }, 4);";
+      relogio = new Worker(URL.createObjectURL(new Blob([codigo], { type: "text/javascript" })));
+    } catch (e) {
+      return null;
+    }
+    const intervalo = 1000 / qps;
+    let ultimo = null, novoDesdeEnvio = false, desenhado = false, proximo = 0, ativo = true;
+    let novos = 0, enviados = 0, repetidos = 0, falhasDesenho = 0, contagemDesde = performance.now();
+
+    /* Quadro novo da tela sai como veio. Repeticao (tela parada) sai de uma
+       copia desenhada numa tela propria: copiar o quadro da captura direto
+       nao servia, porque a copia leva o mesmo "numero de captura" e o Chrome
+       a descarta como "sem mudanca" (tela parada: 1-2 q/s e a TV congelava
+       4,7 s). Mandar TUDO pela tela propria deixou a TV a ~5 q/s visiveis no
+       PC do teste (20/10), entao ela so e usada pra repetir. */
+    const quadro = typeof OffscreenCanvas === "function" ? new OffscreenCanvas(2, 2) : null;
+    const pincel = quadro ? quadro.getContext("2d") : null;
+
+    /* manda o quadro mais recente com o carimbo da agenda (em microssegundos) */
+    function enviar(horaAgendada) {
+      if (!ativo || !ultimo) return;
+      if (escritor.desiredSize !== null && escritor.desiredSize <= 0) return;   /* nao deixa fila crescer */
+      const carimbo = { timestamp: Math.round(horaAgendada * 1000) };
+      let copia;
+      try {
+        if (novoDesdeEnvio || !desenhado) copia = new VideoFrame(ultimo, carimbo);
+        else { copia = new VideoFrame(quadro, carimbo); repetidos++; }
+      } catch (e) { return; }
+      novoDesdeEnvio = false;
+      enviados++;
+      escritor.write(copia).catch(function () { try { copia.close(); } catch (e) {} });
+    }
+
+    function parar() {
+      if (!ativo) return;
+      ativo = false;
+      relogio.terminate();
+      try { leitor.cancel(); } catch (e) {}
+      if (ultimo) { try { ultimo.close(); } catch (e) {} ultimo = null; }
+      try { gerador.stop(); } catch (e) {}
+    }
+
+    /* quadro novo da tela: guarda (e desenha a copia pra repetir);
+       quem manda e o relogio */
+    (function ler() {
+      leitor.read().then(function (r) {
+        if (r.done || !ativo) { if (r.value) r.value.close(); parar(); return; }
+        const q = r.value;
+        novos++;
+        if (ultimo) ultimo.close();
+        ultimo = q;
+        novoDesdeEnvio = true;
+        desenhado = false;
+        if (pincel) {
+          try {
+            if (quadro.width !== q.displayWidth || quadro.height !== q.displayHeight) {
+              quadro.width = q.displayWidth;
+              quadro.height = q.displayHeight;
+            }
+            pincel.drawImage(q, 0, 0);
+            desenhado = true;
+          } catch (e) { falhasDesenho++; }
+        }
+        ler();
+      }).catch(parar);
+    })();
+
+    /* agenda fixa: um quadro a cada 33,3 ms. Se o PC engasgar e a agenda
+       ficar muito pra tras, recomeca dali em vez de mandar uma rajada. */
+    relogio.onmessage = function () {
+      const agora = performance.now();
+      if (!proximo || agora - proximo > intervalo * 3) proximo = agora;
+      if (agora < proximo) return;
+      enviar(proximo);
+      proximo += intervalo;
+    };
+
+    return {
+      trilha: gerador,
+      parar: parar,
+      /* quadros novos da tela por segundo, desde a ultima consulta; guarda
+         tambem quantos o relogio mandou no mesmo periodo */
+      qpsReal: function () {
+        const agora = performance.now();
+        const seg = Math.max(1, agora - contagemDesde) / 1000;
+        const qpsTela = Math.round(novos / seg);
+        this.qpsRelogio = Math.round(enviados / seg);
+        this.qpsRepetidos = Math.round(repetidos / seg);
+        this.falhasDesenho = falhasDesenho;
+        novos = 0;
+        enviados = 0;
+        repetidos = 0;
+        falhasDesenho = 0;
+        contagemDesde = agora;
+        return qpsTela;
+      },
+      qpsRelogio: null
+    };
+  }
+
+  /* Define o teto de banda (o padrao do Chrome para tela e baixo) e o que
+     sacrificar quando a rede apertar. */
+  function ajustarEnvio(conexao) {
+    const perfil = PERFIL;
+    conexao.getSenders().forEach(function (s) {
+      if (!s.track || s.track.kind !== "video") return;
+      const p = s.getParameters();
+      if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+      p.encodings[0].maxBitrate = perfil.banda;
+      p.encodings[0].maxFramerate = perfil.qps;
+      p.degradationPreference = perfil.ceder;
+      s.setParameters(p).catch(function () {});
+    });
+  }
+
+  /* ----------------------------------------------------------------------
+     Medidas: o que este PC envia, o que a TV recebe e onde esta o gargalo
+     ---------------------------------------------------------------------- */
+  const medidas = el("medidas");
+  let medidasTv = null;
+  let timerMedidas = null;
+  let envioAnterior = null;
+
+  function iniciarMedidas() {
+    medidasTv = null;
+    envioAnterior = null;
+    medidas.hidden = false;
+    medidas.textContent = "Medindo a transmissão...";
+    clearInterval(timerMedidas);
+    timerMedidas = setInterval(atualizarMedidas, 2000);
+  }
+
+  function pararMedidas() {
+    clearInterval(timerMedidas);
+    timerMedidas = null;
+    medidas.hidden = true;
+  }
+
+  function atualizarMedidas() {
+    if (!pc) return;
+    pc.getStats().then(function (rel) {
+      let saida = null, captura = null, codec = "", retorno = null;
+      rel.forEach(function (s) {
+        if (s.type === "outbound-rtp" && s.kind === "video") saida = s;
+        if (s.type === "media-source" && s.kind === "video") captura = s;   /* antes de codificar */
+        if (s.type === "remote-inbound-rtp" && s.kind === "video") retorno = s;   /* o que a TV relatou */
+      });
+      if (!saida) return;
+      /* com o ritmo constante, o que importa e quantos quadros NOVOS a tela
+         gerou (os repetidos nao contam) */
+      if (ritmo) captura = { framesPerSecond: ritmo.qpsReal() };
+      if (saida.codecId && rel.get(saida.codecId)) codec = rel.get(saida.codecId).mimeType.replace("video/", "");
+      const a = envioAnterior;
+      envioAnterior = saida;
+      const segundos = a ? (saida.timestamp - a.timestamp) / 1000 : 0;
+      const mbps = segundos > 0 ? 8 * (saida.bytesSent - a.bytesSent) / segundos / 1e6 : null;
+      /* fila de saida: quanto cada pacote esperou dentro deste PC antes de
+         sair pra rede, em media nos ultimos 2 segundos (ms) */
+      const pacotes = a ? saida.packetsSent - a.packetsSent : 0;
+      const fila = a && pacotes > 0 && saida.totalPacketSendDelay !== undefined
+        ? Math.round(1000 * (saida.totalPacketSendDelay - a.totalPacketSendDelay) / pacotes) : null;
+      const rede = {
+        idaEVolta: retorno && retorno.roundTripTime !== undefined ? Math.round(retorno.roundTripTime * 1000) : null,
+        perda: retorno && retorno.fractionLost !== undefined ? Math.round(retorno.fractionLost * 100) : null
+      };
+      desenharMedidas(saida, mbps, captura, codec, fila, rede);
+
+      /* guarda no servidor tambem: da pra investigar atraso sem print */
+      fetch("/medidas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tv: tvDaTransmissao, envio: {
+          qpsCaptura: captura && captura.framesPerSecond !== undefined ? Math.round(captura.framesPerSecond) : null,
+          largura: saida.frameWidth || 0,
+          altura: saida.frameHeight || 0,
+          qps: Math.round(saida.framesPerSecond || 0),
+          mbps: mbps !== null ? Math.round(mbps * 10) / 10 : null,
+          limitadoPor: saida.qualityLimitationReason || "",
+          codificador: codec + (saida.encoderImplementation ? " (" + saida.encoderImplementation + ")" : ""),
+          /* fila do envio: video esperando pra sair do PC (ms, ultimos 2 s) */
+          filaEnvio: fila,
+          /* ida e volta pela rede ate a TV, e perda de pacotes relatada por ela */
+          redeIdaEVolta: rede.idaEVolta,
+          perdaPacotes: rede.perda !== null ? rede.perda + "%" : null
+        } })
+      }).catch(function () {});
+    }).catch(function () {});
+  }
+
+  function linha(rotulo, texto, alerta) {
+    const div = document.createElement("div");
+    const r = document.createElement("strong");
+    r.textContent = rotulo + " ";
+    const t = document.createElement("span");
+    t.textContent = texto;
+    if (alerta) t.className = "alerta";
+    div.append(r, t);
+    return div;
+  }
+
+  function desenharMedidas(s, mbps, captura, codec, fila, rede) {
+    const LIMITE = { none: "nada", cpu: "processador deste PC", bandwidth: "rede", other: "outro" };
+    const linhas = [];
+    const qpsCaptura = captura && captura.framesPerSecond !== undefined ? Math.round(captura.framesPerSecond) : null;
+
+    linhas.push(linha("Captura da tela:",
+      (qpsCaptura !== null ? qpsCaptura + " quadros/s" : "sem medida") +
+      " · codificador: " + (codec || "?") +
+      (s.encoderImplementation ? " (" + s.encoderImplementation + ")" : "")));
+
+    linhas.push(linha("Este PC envia:",
+      (s.frameWidth || "?") + "×" + (s.frameHeight || "?") + " a " + Math.round(s.framesPerSecond || 0) + " quadros/s" +
+      (mbps !== null ? " · " + mbps.toFixed(1).replace(".", ",") + " Mbps" : "") +
+      (fila !== null ? " · fila de saída: " + fila + " ms" : "") +
+      " · limitado por: " + (LIMITE[s.qualityLimitationReason] || "nada")));
+
+    if (rede && rede.idaEVolta !== null) {
+      linhas.push(linha("Rede até a TV:",
+        "ida e volta " + rede.idaEVolta + " ms" + (rede.perda !== null ? " · perda " + rede.perda + "%" : "")));
+    }
+
+    const tv = medidasTv;
+    if (tv) {
+      linhas.push(linha("A TV recebe:",
+        tv.largura + "×" + tv.altura + " a " + tv.qps + " quadros/s" +
+        (tv.buffer !== null ? " · espera no buffer: " + tv.buffer + " ms" : "") +
+        (tv.decodificacao !== null ? " · decodificar: " + tv.decodificacao + " ms/quadro" : "") +
+        " · descartados: " + tv.perdidos +
+        (tv.travadas !== null && tv.travadas !== undefined ? " · travadas: " + tv.travadas : "") +
+        (tv.irregularidade !== null && tv.irregularidade !== undefined ? " · irregularidade: " + tv.irregularidade + " ms" : "") +
+        (tv.decodificador ? " · " + tv.decodificador : "")));
+    } else {
+      linhas.push(linha("A TV recebe:", "aguardando as medidas da TV..."));
+    }
+
+    /* diagnostico: aponta o maior gargalo encontrado. A primeira coisa a olhar
+       e quantos quadros o PC captura: com poucos quadros, todas as outras
+       medidas ficam distorcidas (ex.: a espera no buffer parece alta). */
+    let diag = "nenhum gargalo claro agora.";
+    let alerta = false;
+    const qpsPc = Math.round(s.framesPerSecond || 0);
+    if (qpsCaptura !== null && qpsCaptura >= 15 && qpsPc < qpsCaptura / 2) {
+      diag = "a tela é capturada a " + qpsCaptura + " quadros/s, mas só " + qpsPc +
+             " saem do codificador. Este PC não está dando conta: feche programas pesados.";
+      alerta = true;
+    } else if ((qpsCaptura !== null ? qpsCaptura : qpsPc) < 10) {
+      /* Tela parada gera poucos quadros: e normal, e com poucos quadros as
+         outras medidas (principalmente o buffer) saem distorcidas. Nao julga,
+         so avisa - antes isso piscava como erro a cada momento parado. */
+      diag = "tela parada ou quase parada. Mexa nela por alguns segundos para medir.";
+    } else if (fila !== null && fila > 150) {
+      /* o video ficou preso dentro do PC, antes da rede */
+      diag = "o vídeo está esperando " + fila + " ms na fila de saída deste PC: sai mais dados do que a rede " +
+             "aguenta. Wi-Fi de 5 GHz ou cabo ajudam.";
+      alerta = true;
+    } else if (tv && tv.travadas > 0) {
+      /* A TV so mostra o que recebe: se ela recebe o mesmo tanto que o PC
+         manda, a falha ja saiu daqui (medido em 20/10: PC 17 -> TV 18 q/s,
+         rede 0% de perda). So culpa a rede quando o PC manda bem e a TV nao. */
+      const congelou = "a imagem congelou " + tv.travadas + " vez(es) na TV nos últimos 2 s (" + tv.tempoTravado + " ms parada). ";
+      if (qpsPc < 24 && qpsCaptura !== null && qpsCaptura < 24) {
+        diag = congelou + "A rede está ok: a própria tela só gera " + qpsCaptura + " quadros/s — o app mostrado " +
+               "atualiza aos trancos, ou o Chrome não está conseguindo capturar (feche abas e programas pesados).";
+      } else if (qpsPc < 24) {
+        diag = congelou + "A rede está ok: " + (qpsCaptura !== null ? "a tela gera " + qpsCaptura + " quadros/s, mas " : "") +
+               "este PC só manda " + qpsPc + ". Feche programas pesados.";
+      } else {
+        diag = congelou + "O PC manda bem, mas a TV recebe com falhas: cabo de rede ou Wi-Fi de 5 GHz na TV resolvem.";
+      }
+      alerta = true;
+    } else if (rede && rede.idaEVolta !== null && (rede.idaEVolta > 150 || (rede.perda !== null && rede.perda > 3))) {
+      diag = "a rede até a TV está lenta ou perdendo pacotes. TV no cabo de rede ou Wi-Fi de 5 GHz resolvem.";
+      alerta = true;
+    } else if (tv && tv.decodificacao !== null && tv.decodificacao > 25) {
+      diag = "o processador da TV não está dando conta de decodificar. Compartilhe só a janela do app.";
+      alerta = true;
+    } else if (tv && tv.buffer !== null && tv.buffer > (tv.reserva || 0) + 150) {
+      /* a TV segura de proposito a reserva (tv.html); so e problema o que passar dela */
+      diag = "os quadros chegam em rajadas e a TV segura alguns pra compensar. TV no cabo de rede ou Wi-Fi de 5 GHz ajudam.";
+      alerta = true;
+    } else if (s.qualityLimitationReason === "cpu") {
+      diag = "este PC não está dando conta de codificar. Feche programas pesados.";
+      alerta = true;
+    } else if (s.qualityLimitationReason === "bandwidth") {
+      diag = "a rede está limitando a qualidade. Wi-Fi de 5 GHz ou cabo ajudam.";
+      alerta = true;
+    }
+    linhas.push(linha("Diagnóstico:", diag, alerta));
+
+    medidas.textContent = "";
+    linhas.forEach(function (l) { medidas.appendChild(l); });
+    anotarMedida(s, mbps, fila, rede, tv, qpsPc, qpsCaptura, diag, alerta);
+  }
+
+  /* ----------------------------------------------------------------------
+     Registro da sessao: fica na tela depois que a transmissao acaba, pra
+     dar pra ver (e copiar) o que aconteceu do inicio ao fim. Uma linha a
+     cada 10 s, e na hora sempre que o diagnostico muda ou acusa problema.
+     ---------------------------------------------------------------------- */
+  const caixaRegistro = el("registro");
+  const textoRegistro = el("textoRegistro");
+  let registro = [];
+  let resumo = null;
+  let ultimoDiag = "";
+  let ultimaLinha = 0;
+  let ultimaTv = null;
+
+  function registrar(texto) {
+    registro.push(new Date().toLocaleTimeString("pt-BR") + "  " + texto);
+    if (registro.length > 1000) registro.shift();
+    caixaRegistro.hidden = false;
+    /* so rola pro fim se a pessoa nao subiu pra ler algo antigo */
+    const noFim = textoRegistro.scrollTop + textoRegistro.clientHeight >= textoRegistro.scrollHeight - 4;
+    textoRegistro.textContent = registro.join("\n");
+    if (noFim) textoRegistro.scrollTop = textoRegistro.scrollHeight;
+  }
+
+  function iniciarRegistro(alvo) {
+    registro = [];
+    ultimoDiag = "";
+    ultimaLinha = 0;
+    ultimaTv = null;
+    resumo = { inicio: Date.now(), amostrasTv: 0, somaQpsTv: 0, travadas: 0, tempoTravado: 0,
+               filaMax: 0, bufferMax: 0, irregMax: 0, alertas: 0 };
+    registrar("Início da transmissão para a " + nomeDa(alvo) + " (VP8, 720p, 30 quadros/s).");
+  }
+
+  function anotarMedida(s, mbps, fila, rede, tv, qpsPc, qpsCaptura, diag, alerta) {
+    if (!resumo) return;
+    if (alerta) resumo.alertas++;
+    if (fila !== null) resumo.filaMax = Math.max(resumo.filaMax, fila);
+    /* a TV mede a cada 2 s; a mesma medida nao conta duas vezes */
+    if (tv && tv !== ultimaTv) {
+      ultimaTv = tv;
+      resumo.travadas += tv.travadas || 0;
+      resumo.tempoTravado += tv.tempoTravado || 0;
+      if (qpsPc >= 10) {   /* tela parada distorce a media */
+        resumo.amostrasTv++;
+        resumo.somaQpsTv += tv.qps;
+        if (tv.buffer !== null) resumo.bufferMax = Math.max(resumo.bufferMax, tv.buffer);
+        if (tv.irregularidade !== null && tv.irregularidade !== undefined) resumo.irregMax = Math.max(resumo.irregMax, tv.irregularidade);
+      }
+    }
+    if (!alerta && diag === ultimoDiag && Date.now() - ultimaLinha < 10000) return;
+    ultimoDiag = diag;
+    ultimaLinha = Date.now();
+    const num = function (v, sufixo) { return v === null || v === undefined ? "?" : v + sufixo; };
+    const LIMITE = { none: "", cpu: " limitado pelo processador", bandwidth: " limitado pela rede", other: " limitado por outro" };
+    registrar(
+      "tela " + num(qpsCaptura, " q/s") +
+      (ritmo && ritmo.qpsRelogio !== null
+        ? " | relógio " + ritmo.qpsRelogio + " q/s (" + ritmo.qpsRepetidos + " repetidos" +
+          (ritmo.falhasDesenho ? ", " + ritmo.falhasDesenho + " falhas na cópia" : "") + ")"
+        : " | relógio desligado") +
+      " | PC " + (s.frameWidth || "?") + "×" + (s.frameHeight || "?") + " " + qpsPc + " q/s" +
+      (LIMITE[s.qualityLimitationReason] || "") +
+      (mbps !== null ? " " + mbps.toFixed(1).replace(".", ",") + " Mbps" : "") +
+      " fila " + num(fila, " ms") +
+      " | rede " + num(rede && rede.idaEVolta, " ms") + " perda " + num(rede && rede.perda, "%") +
+      " | TV " + (tv ? tv.qps + " q/s buffer " + num(tv.buffer, " ms") + " travadas " + num(tv.travadas, "") +
+                       " irregularidade " + num(tv.irregularidade, " ms") : "sem medida") +
+      " | " + (alerta ? "PROBLEMA: " : "") + diag);
+  }
+
+  function fecharRegistro() {
+    if (!resumo) return;
+    const seg = Math.round((Date.now() - resumo.inicio) / 1000);
+    registrar("Fim. Duração " + (seg >= 60 ? Math.floor(seg / 60) + " min " : "") + (seg % 60) + " s" +
+      " · TV em média " + (resumo.amostrasTv ? Math.round(resumo.somaQpsTv / resumo.amostrasTv) : "?") + " quadros/s" +
+      " · travadas " + resumo.travadas + " (" + resumo.tempoTravado + " ms)" +
+      " · maior irregularidade " + resumo.irregMax + " ms" +
+      " · maior buffer " + resumo.bufferMax + " ms" +
+      " · maior fila " + resumo.filaMax + " ms" +
+      " · medidas com problema " + resumo.alertas + ".");
+    resumo = null;
+  }
+
+  el("copiarRegistro").addEventListener("click", function () {
+    const texto = textoRegistro.textContent;
+    const bt = this;
+    const pronto = function () { bt.textContent = "Copiado"; setTimeout(function () { bt.textContent = "Copiar"; }, 1500); };
+    const reserva = function () {
+      /* sem a API da area de transferencia (http): seleciona e copia */
+      const r = document.createRange();
+      r.selectNodeContents(textoRegistro);
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+      try { if (document.execCommand("copy")) pronto(); } catch (e) {}
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(texto).then(pronto, reserva);
+    else reserva();
+  });
+
+  /* ----------------------------------------------------------------------
+     Parar
+     ---------------------------------------------------------------------- */
+  function limpar() {
+    pararMedidas();
+    const estavaTransmitindo = !!pc;
+    if (pc) { try { pc.close(); } catch (e) {} pc = null; }
+    if (estavaTransmitindo) retomarVisores();
+    if (ritmo) { ritmo.parar(); ritmo = null; }
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    tvDaTransmissao = null;
+    iceNaFila = [];
+    ofertaAceita = false;
+    btParar.style.display = "none";
+    cartaoTela.classList.remove("transmitindo");
+    desenharSeletor();
+    refletirTela();
+  }
+
+  function pararTransmissao() {
+    if (tvDaTransmissao) {
+      sinalizar({ tipo: "parar", tv: tvDaTransmissao, de: meuId }).catch(function () {});
+    }
+    const tv = tvDaTransmissao;
+    limpar();
+    fecharRegistro();
+    avisar("Transmissão encerrada. A " + nomeDa(tv) + " voltou para o painel.");
+  }
+
+  btParar.addEventListener("click", pararTransmissao);
+
+  /* fechar a aba no meio da transmissao tambem encerra */
+  window.addEventListener("pagehide", function () {
+    if (pc && tvDaTransmissao) {
+      navigator.sendBeacon("/sinal", JSON.stringify({ tipo: "parar", tv: tvDaTransmissao, de: meuId }));
+    }
+  });
+
+  /* ----------------------------------------------------------------------
+     Respostas da TV
+     ---------------------------------------------------------------------- */
+  function receberResposta(msg) {
+    if (pc && msg.sdp) {
+      /* Banda inicial, minima e maxima (kbps), lidas pelo Chrome na descricao
+         remota. Sem isso o WebRTC comeca baixo e os primeiros segundos ficam
+         borrados. Banda acima do necessario no Wi-Fi faz os pacotes chegarem
+         em rajadas, e a TV segura mais quadros no buffer - mais atraso. */
+      const sdp = { type: msg.sdp.type, sdp: aplicarBanda(msg.sdp.sdp, PERFIL) };
+      pc.setRemoteDescription(sdp).catch(function () {
+        /* se o navegador rejeitar os parametros extras, usa a resposta original */
+        return pc.setRemoteDescription(msg.sdp);
+      }).catch(function (e) {
+        avisar("A TV recusou a conexão: " + e.message, "erro");
+      });
+    }
+  }
+
+  /* Coloca banda inicial, minima e maxima em cada codificador de video da
+     resposta da TV. As instrucoes vao na linha "a=fmtp" do codificador - mas o
+     VP8 normalmente NAO tem essa linha. A versao anterior so acrescentava em
+     linhas existentes, entao pro VP8 nada chegava: o Chrome comecava em 320x180
+     e levava ~10 s pra chegar em 720p. Aqui a linha e criada quando falta. */
+  function aplicarBanda(texto, perfil) {
+    const extra = "x-google-start-bitrate=" + perfil.inicio +
+                  ";x-google-min-bitrate=" + perfil.minimo +
+                  ";x-google-max-bitrate=" + Math.round(perfil.banda / 1000);
+    const AUXILIARES = /^(rtx|red|ulpfec|flexfec)/i;   /* nao sao video de verdade */
+    const linhas = texto.split("\r\n");
+
+    /* 1a passada: quais codificadores de video existem e quais ja tem fmtp */
+    let emVideo = false;
+    const codecs = {}, comFmtp = {};
+    linhas.forEach(function (l) {
+      if (l.indexOf("m=") === 0) emVideo = l.indexOf("m=video") === 0;
+      if (!emVideo) return;
+      let m = /^a=rtpmap:(\d+) ([^/]+)/.exec(l);
+      if (m && !AUXILIARES.test(m[2])) codecs[m[1]] = true;
+      m = /^a=fmtp:(\d+) /.exec(l);
+      if (m) comFmtp[m[1]] = true;
+    });
+
+    /* 2a passada: acrescenta onde tem fmtp, cria a linha onde nao tem */
+    const saida = [];
+    emVideo = false;
+    linhas.forEach(function (l) {
+      if (l.indexOf("m=") === 0) emVideo = l.indexOf("m=video") === 0;
+      let m = emVideo && /^a=fmtp:(\d+) (.*)$/.exec(l);
+      if (m && codecs[m[1]]) { saida.push(l + ";" + extra); return; }
+      saida.push(l);
+      m = emVideo && /^a=rtpmap:(\d+) /.exec(l);
+      if (m && codecs[m[1]] && !comFmtp[m[1]]) saida.push("a=fmtp:" + m[1] + " " + extra);
+    });
+    return saida.join("\r\n");
+  }
+
+  function receberIce(msg) {
+    if (pc && msg.candidate) pc.addIceCandidate(msg.candidate).catch(function () {});
+  }
+
+  function refletirCompartilhamento(msg) {
+    quemNa[msg.tv] = msg.quem;
+
+    /* O servidor encerrou a MINHA transmissao sem eu pedir: a TV desligou ou
+       saiu da rede. Paramos aqui tambem, em vez de transmitir pro nada. */
+    if (pc && msg.tv === tvDaTransmissao && msg.quem === null) {
+      const motivo = msg.motivo;
+      limpar();   /* ja redesenha o seletor e o cartao */
+      registrar("PROBLEMA: o servidor encerrou a transmissão (" + (motivo || "sem motivo informado") + ").");
+      fecharRegistro();
+      if (motivo === "a TV desconectou") {
+        avisar("A transmissão parou porque a " + nomeDa(msg.tv) + " desconectou.", "erro");
+      }
+      /* sai aqui: redesenhar de novo abaixo apagaria o aviso que acabou de aparecer */
+      return;
+    }
+
+    desenharSeletor();
+    if (msg.tv === tvAtual) refletirTela();
+  }
+
+  /* ----------------------------------------------------------------------
+     Carga inicial e canal de eventos
+     ---------------------------------------------------------------------- */
+  function mostrarSemConexao() {
+    const caixa = el("seletorTv");
+    if (!tvs.length) caixa.textContent = "Sem conexão com o servidor.";
+  }
+
+  fetch("/config")
+    .then(function (r) { return r.json(); })
+    .then(function (cfg) {
+      tvs = cfg.tvs || [];
+      atalhos = cfg.atalhos || [];
+      intermediarios = cfg.intermediarios || [];
+      estados = cfg.estados || {};
+      presenca = cfg.presenca || {};
+      quemNa = cfg.compartilhando || {};
+      escolherTv(tvInicial());
+    })
+    .catch(mostrarSemConexao);
+
+  const fonte = new EventSource("/eventos?papel=controle");
+
+  fonte.onmessage = function (ev) {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch (e) { return; }
+
+    if (msg.tipo === "bemvindo") {
+      meuId = msg.id;
+    } else if (msg.tipo === "estado") {
+      estados[msg.tv] = msg.estado;
+      if (msg.tv === tvAtual) { refletir(msg.estado); desenharRemoto(); }
+    } else if (msg.tipo === "presenca") {
+      presenca = msg.tvs;
+      desenharSeletor();
+    } else if (msg.tipo === "resposta") {
+      receberResposta(msg);
+    } else if (msg.tipo === "ice") {
+      receberIce(msg);
+    } else if (msg.tipo === "compartilhando") {
+      refletirCompartilhamento(msg);
+    } else if (msg.tipo === "stats") {
+      if (pc) medidasTv = msg.dados;
+    }
+  };
+
+  fonte.onerror = function () {
+    presenca = {};
+    desenharSeletor();
+    mostrarSemConexao();
+  };
+})();
+</script>
+</body>
+</html>

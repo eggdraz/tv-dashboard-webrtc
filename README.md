@@ -115,3 +115,7 @@ O código foi escrito **em par com IA (Claude)**: a IA propunha soluções e imp
 A regra que mais fez diferença: **nenhuma mudança ia pras TVs sem ser testada antes**.
 
 O que aprendi no caminho: como o WebRTC funciona por dentro (SDP, ICE, codificadores, estatísticas de envio e recepção), como cookies e CORS se comportam entre sites, e — principalmente — que medir antes de corrigir economiza dias.
+
+## Licença
+
+[MIT](LICENSE) — pode usar, copiar e modificar, mantendo o aviso de autoria.
